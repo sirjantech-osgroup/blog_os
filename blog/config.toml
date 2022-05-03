@@ -1,4 +1,4 @@
-base_url = "https://os.phil-opp.com"
+base_url = "https://rust-os.ir"
 
 generate_feed = true
 feed_filename = "rss.xml"
@@ -29,7 +29,7 @@ skip_anchor_prefixes = [
 [extra]
 subtitle = "Philipp Oppermann's blog"
 author = { name = "Philipp Oppermann" }
-default_language = "en"
+default_language = "fa"
 languages = ["en", "zh-CN", "zh-TW", "fr", "ja", "fa", "ru", "ko"]
 
 [languages.en]
