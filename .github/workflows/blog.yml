@@ -88,12 +88,12 @@ jobs:
         deploy_key: ${{ secrets.DEPLOY_SSH_KEY }}
 
     - name: "Clone blog_os_deploy Repo"
-      run: git clone git@github.com:phil-opp/blog_os_deploy.git --branch gh-pages
+      run: git clone git@github.com:sirjantech-osgroup/blog_os_deploy.git --branch gh-pages
 
     - name: "Set Up Git Identity"
       run: |
         git config --local user.name "GitHub Actions Deploy"
-        git config --local user.email "github-actions-deploy@phil-opp.com"
+        git config --local user.email "github-actions-deploy@rust-os.ir"
       working-directory: "blog_os_deploy"
 
     - name: "Delete Old Content"
@@ -108,7 +108,7 @@ jobs:
         git add .
         git commit --allow-empty -m "Deploy ${GITHUB_SHA}
 
-        Deploy of commit https://github.com/phil-opp/blog_os/commit/${GITHUB_SHA}"
+        Deploy of commit https://github.com/sirjantech-osgroup/blog_os/commit/${GITHUB_SHA}"
       working-directory: "blog_os_deploy"
 
     - name: "Show Changes"
