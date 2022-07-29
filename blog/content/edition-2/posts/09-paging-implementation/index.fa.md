@@ -50,30 +50,30 @@ rtl = true
 
 بنابراین برای دسترسی به فریم‌های جدول صفحه، باید برخی از صفحات مجازی را به آن‌ها نگاشت کنیم. راه‌های مختلفی برای ایجاد این نگاشت‌ها وجود دارد که همگی به ما امکان دسترسی به فریم‌های جدول صفحه دلخواه را می‌دهند.
 
-### Identity Mapping
+### نگاشت هویت
 
-A simple solution is to **identity map all page tables**:
+یک راه حل ساده این است که **تمام جداول صفحه را نگاشت هویت کرد**:
 
 ![A virtual and a physical address space with various virtual pages mapped to the physical frame with the same address](identity-mapped-page-tables.svg)
 
-In this example, we see various identity-mapped page table frames. This way the physical addresses of page tables are also valid virtual addresses so that we can easily access the page tables of all levels starting from the CR3 register.
+در این مثال، ما قاب‌های جدول صفحه با نگاشت هویت شده مختلف را می‌بینیم. به این ترتیب آدرس‌های فیزیکی جداول صفحه نیز آدرس‌های مجازی معتبری هستند تا بتوانیم به راحتی به جداول صفحه همه سطوح از ثبات CR3 دسترسی داشته باشیم.
 
-However, it clutters the virtual address space and makes it more difficult to find continuous memory regions of larger sizes. For example, imagine that we want to create a virtual memory region of size 1000 KiB in the above graphic, e.g. for [memory-mapping a file]. We can't start the region at `28 KiB` because it would collide with the already mapped page at `1004 KiB`. So we have to look further until we find a large enough unmapped area, for example at `1008 KiB`. This is a similar fragmentation problem as with [segmentation].
+با این حال، فضای آدرس مجازی را به هم ریخته و یافتن بخش منطقه‌های پیوسته با اندازه‌های بزرگتر را دشوارتر می‌کند. به عنوان مثال، تصور کنید که می‌خواهیم یک منطقه حافظه مجازی به اندازه 1000 کیلوبایت در گرافیک بالا ایجاد کنیم، برای مثال برای [نگاشت حافظه یک فایل]. ما نمی‌توانیم منطقه را با «28KiB» شروع کنیم، زیرا با صفحه از قبل نگاشت شده در «1004KiB» برخورد می‌کند. بنابراین باید بیشتر جستجو کنیم تا زمانی که یک منطقه به اندازه کافی بزرگ و بدون نگاشت پیدا کنیم، برای مثال در `1008KiB`. این یک مشکل تکه‌تکه شدن مشابه با [تقسیم‌بندی] است.
 
-[memory-mapping a file]: https://en.wikipedia.org/wiki/Memory-mapped_file
-[segmentation]: @/edition-2/posts/08-paging-introduction/index.md#fragmentation
+[نگاشت حافظه یک فایل]: https://en.wikipedia.org/wiki/Memory-mapped_file
+[تقسیم‌بندی]: @/edition-2/posts/08-paging-introduction/index.md#fragmentation
 
-Equally, it makes it much more difficult to create new page tables, because we need to find physical frames whose corresponding pages aren't already in use. For example, let's assume that we reserved the _virtual_ 1000 KiB memory region starting at `1008 KiB` for our memory-mapped file. Now we can't use any frame with a _physical_ address between `1000 KiB` and `2008 KiB` anymore, because we can't identity map it.
+به همین ترتیب، ایجاد جداول صفحه جدید را بسیار دشوارتر می‌کند، زیرا ما باید فریم‌های فیزیکی را پیدا کنیم که صفحات مربوطه آن‌ها قبلاً مورد استفاده قرار نگرفته‌اند. به عنوان مثال، فرض کنید که منطقه حافظه _مجازی_ 1000KiB را که از '1008KiB' شروع می‌شود برای فایل نگاشت حافظه خود رزرو کرده‌ایم. اکنون دیگر نمی‌توانیم از هیچ فریمی با آدرس _فیزیکی_ بین «1000KiB» و «2008KiB» استفاده کنیم، زیرا نمی‌توانیم آن را نگاشت کنیم.
 
-### Map at a Fixed Offset
+### نگاشت در یک آفست ثابت
 
-To avoid the problem of cluttering the virtual address space, we can **use a separate memory region for page table mappings**. So instead of identity mapping page table frames, we map them at a fixed offset in the virtual address space. For example, the offset could be 10 TiB:
+برای جلوگیری از به هم ریختگی فضای آدرس مجازی، می‌توانیم **از یک ناحیه حافظه جداگانه برای نگاشت جدول صفحه استفاده کنیم**. بنابراین به جای نگاشت هویت فریم های جدول صفحه، آن ها را با یک آفست ثابت در فضای آدرس مجازی نگاشت می‌کنیم. به عنوان مثال، آفست می تواند 10TiB باشد:
 
 ![The same figure as for the identity mapping, but each mapped virtual page is offset by 10 TiB.](page-tables-mapped-at-offset.svg)
 
-By using the virtual memory in the range `10TiB..(10TiB + physical memory size)` exclusively for page table mappings, we avoid the collision problems of the identity mapping. Reserving such a large region of the virtual address space is only possible if the virtual address space is much larger than the physical memory size. This isn't a problem on x86_64 since the 48-bit address space is 256 TiB large.
+با استفاده از حافظه مجازی در محدوده `10TiB..(10TiB + physical memory size)` به طور انحصاری برای نگاشت جدول صفحه، از مشکلات برخورد (collision) نگاشت هویت جلوگیری می‌کنیم. رزرو چنین منطقه بزرگی از فضای آدرس مجازی تنها در صورتی امکان‌پذیر است که فضای آدرس مجازی بسیار بزرگتر از اندازه حافظه فیزیکی باشد. این مشکل در x86_64 نیست زیرا فضای آدرس 48 بیتی دارای بزرگی 256TiB است.
 
-This approach still has the disadvantage that we need to create a new mapping whenever we create a new page table. Also, it does not allow accessing page tables of other address spaces, which would be useful when creating a new process.
+این رویکرد هنوز هم این عیب را دارد که هر زمان که جدول صفحه جدیدی ایجاد می‌کنیم باید یک نگاشت جدید ایجاد کنیم. همچنین، اجازه دسترسی به جداول صفحه سایر فضاهای آدرس را نمی‌دهد، که در هنگام ایجاد یک فرآیند جدید مفید خواهد بود.
 
 ### Map the Complete Physical Memory
 
