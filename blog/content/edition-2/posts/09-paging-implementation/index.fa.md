@@ -75,104 +75,105 @@ rtl = true
 
 این رویکرد هنوز هم این عیب را دارد که هر زمان که جدول صفحه جدیدی ایجاد می‌کنیم باید یک نگاشت جدید ایجاد کنیم. همچنین، اجازه دسترسی به جداول صفحه سایر فضاهای آدرس را نمی‌دهد، که در هنگام ایجاد یک فرآیند جدید مفید خواهد بود.
 
-### Map the Complete Physical Memory
+### نگاشت کردن حافظه فیزیکی به صورت کامل
 
-We can solve these problems by **mapping the complete physical memory** instead of only page table frames:
+ما می توانیم این مشکلات را با **نگاشت کردن حافظه فیزیکی به صورت کامل** به جای فقط فریم‌های جدول صفحه، حل کنیم:
 
 ![The same figure as for the offset mapping, but every physical frame has a mapping (at 10TiB + X) instead of only page table frames.](map-complete-physical-memory.svg)
 
-This approach allows our kernel to access arbitrary physical memory, including page table frames of other address spaces. The reserved virtual memory range has the same size as before, with the difference that it no longer contains unmapped pages.
+این رویکرد به هسته ما اجازه می‌دهد تا به حافظه فیزیکی دلخواه، از جمله فریم‌های جدول صفحه سایر فضاهای آدرس دسترسی پیدا کند. محدوده حافظه مجازی رزرو شده همان اندازه قبلی است، با این تفاوت که دیگر شامل صفحات نگاشت نشده نیست.
 
-The disadvantage of this approach is that additional page tables are needed for storing the mapping of the physical memory. These page tables need to be stored somewhere, so they use up a part of physical memory, which can be a problem on devices with a small amount of memory.
+نقطه ضعف این رویکرد این است که جداول صفحه اضافی برای ذخیره‌سازی نگاشت حافظه فیزیکی مورد نیاز است. این جداول صفحه باید در جایی ذخیره شوند، بنابراین بخشی از حافظه فیزیکی را مصرف می‌کنند، که می‌تواند در دستگاه‌هایی که حافظه کمی دارند مشکل ساز شود.
 
-On x86_64, however, we can use [huge pages] with size 2MiB for the mapping, instead of the default 4KiB pages. This way, mapping 32 GiB of physical memory only requires 132 KiB for page tables since only one level 3 table and 32 level 2 tables are needed. Huge pages are also more cache efficient since they use fewer entries in the translation lookaside buffer (TLB).
+با این حال، در x86_64، به جای صفحات پیش‌فرض 4KiB، می‌توانیم از [صفحات عظیم] با اندازه 2MiB برای نگاشت کردن استفاده کنیم. به این ترتیب، نگاشت 32GiB حافظه فیزیکی تنها به 132KiB برای جداول صفحه نیاز دارد زیرا تنها به یک جدول سطح 3 و 32 جدول سطح 2 نیاز است. صفحات بزرگ نیز از آن‌جایی که از ورودی‌های کمتری در TLB استفاده می‌کنند، در حافظه پنهان کارآمدتر هستند.
 
-[huge pages]: https://en.wikipedia.org/wiki/Page_%28computer_memory%29#Multiple_page_sizes
+[صفحات عظیم]: https://en.wikipedia.org/wiki/Page_%28computer_memory%29#Multiple_page_sizes
 
-### Temporary Mapping
+### نگاشت موقت
 
-For devices with very small amounts of physical memory, we could **map the page tables frames only temporarily** when we need to access them. To be able to create the temporary mappings we only need a single identity-mapped level 1 table:
+برای دستگاه‌هایی که حافظه فیزیکی بسیار کمی دارند، می‌توانیم **قاب‌های جداول صفحه را فقط به طور موقت** در زمانی که نیاز به دسترسی داشته باشیم نگاشت کنیم. برای اینکه بتوانیم نگاشت‌های موقت را ایجاد کنیم، فقط به یک جدول سطح 1 با نگاشت هویت شده نیاز داریم:
 
 ![A virtual and a physical address space with an identity mapped level 1 table, which maps its 0th entry to the level 2 table frame, thereby mapping that frame to page with address 0](temporarily-mapped-page-tables.svg)
 
-The level 1 table in this graphic controls the first 2 MiB of the virtual address space. This is because it is reachable by starting at the CR3 register and following the 0th entry in the level 4, level 3, and level 2 page tables. The entry with index `8` maps the virtual page at address `32 KiB` to the physical frame at address `32 KiB`, thereby identity mapping the level 1 table itself. The graphic shows this identity-mapping by the horizontal arrow at `32 KiB`.
+جدول سطح 1 در این تصویر 2MiB اول فضای آدرس مجازی را کنترل می‌کند. این به این خاطر که با شروع از ثبات CR3 و دنبال کردن ورودی 0 در جداول صفحه سطح 4، سطح 3 و سطح 2 قابل دسترسی است. ورودی با اندیس «8» صفحه مجازی را در آدرس «32KiB» به فریم فیزیکی در آدرس «32KiB» نگاشت می‌کند، بنابراین هویت خود جدول سطح 1 را نگاشت می‌کند. تصویر این نگاشت هویت را با پیکان افقی در `32KiB` نشان می‌دهد.
 
-By writing to the identity-mapped level 1 table, our kernel can create up to 511 temporary mappings (512 minus the entry required for the identity mapping). In the above example, the kernel created two temporary mappings:
+با نوشتن در جدول سطح 1 نگاشت هویت شده، هسته ما می‌تواند تا 511 نگاشت موقت (512 منهای ورودی مورد نیاز برای نگاشت هویت) ایجاد کند. در مثال بالا، هسته دو نگاشت موقت ایجاد کرد:
 
-- By mapping the 0th entry of the level 1 table to the frame with address `24 KiB`, it created a temporary mapping of the virtual page at `0 KiB` to the physical frame of the level 2 page table, indicated by the dashed arrow.
-- By mapping the 9th entry of the level 1 table to the frame with address `4 KiB`, it created a temporary mapping of the virtual page at `36 KiB` to the physical frame of the level 4 page table, indicated by the dashed arrow.
+- با نگاشت ورودی 0 جدول سطح 1 به فریم با آدرس `24KiB`، یک نگاشت موقت از صفحه مجازی در `0KiB` به فریم فیزیکی جدول صفحه سطح 2 ایجاد کرد که با فلش خط‌چین شده مشخص است.
+- با نگاشت نهمین ورودی جدول سطح 1 به فریم با آدرس '4KiB'، یک نگاشت موقت از صفحه مجازی در `36KiB` به فریم فیزیکی جدول صفحه سطح 4 ایجاد کرد که با فلش خط‌چین شده مشخص است.
 
-Now the kernel can access the level 2 page table by writing to page `0 KiB` and the level 4 page table by writing to page `36 KiB`.
+اکنون هسته می‌تواند با نوشتن در صفحه '0KiB' به جدول صفحه سطح 2 و با نوشتن در صفحه '36KiB' به جدول صفحه سطح 4 دسترسی پیدا کند.
 
-The process for accessing an arbitrary page table frame with temporary mappings would be:
+فرآیند دسترسی به یک قاب جدول صفحه دلخواه با نگاشت موقت به صورت زیر خواهد بود:
 
-- Search for a free entry in the identity-mapped level 1 table.
-- Map that entry to the physical frame of the page table that we want to access.
-- Access the target frame through the virtual page that maps to the entry.
-- Set the entry back to unused thereby removing the temporary mapping again.
+- یک ورودی آزاد را در جدول سطح 1 نگاشت هویت شده جستجو کنید.
+- آن ورودی را به فریم فیزیکی جدول صفحه‌ای که می‌خواهیم به آن دسترسی داشته باشیم نگاشت کنید.
+- از طریق صفحه مجازی که به ورودی نگاشت می‌دهد، به فریم هدف دسترسی پیدا کنید.
+- ورودی را به حالت unused برگردانید و در نتیجه نگاشت موقت را دوباره حذف کنید.
 
-This approach reuses the same 512 virtual pages for creating the mappings and thus requires only 4KiB of physical memory. The drawback is that it is a bit cumbersome, especially since a new mapping might require modifications of multiple table levels, which means that we would need to repeat the above process multiple times.
+این رویکرد از همان 512 صفحه مجازی برای ایجاد نگاشت‌ها استفاده مجدد می‌کند و بنابراین تنها به 4KiB حافظه فیزیکی نیاز دارد. اشکال این است که کمی دست و پا گیر می‌باشد، به خصوص از آن‌جایی که یک نگاشت جدید ممکن است به تغییراتی در سطوح مختلف جدول نیاز داشته باشد، به این معنی که ما باید چندین بار روند بالا را تکرار کنیم.
 
-### Recursive Page Tables
+### جدول‌های صفحه بازگشتی
 
-Another interesting approach, that requires no additional page tables at all, is to **map the page table recursively**. The idea behind this approach is to map some entry of the level 4 page table to the level 4 table itself. By doing this, we effectively reserve a part of the virtual address space and map all current and future page table frames to that space.
+یکی دیگر از رویکردهای جالب، که به هیچ وجه به جداول صفحه اضافی نیاز ندارد، **نگاشت جدول صفحه به صورت بازگشتی** است. ایده پشت این رویکرد این است که برخی از ورودی‌های جدول صفحه سطح 4 را به خود جدول سطح 4 نگاشت کنیم. با انجام این کار، ما به طور موثر بخشی از فضای آدرس مجازی را رزرو می‌کنیم و تمام فریم‌های جدول صفحه فعلی و آینده را به آن فضا نگاشت می‌کنیم.
 
-Let's go through an example to understand how this all works:
+بیایید یک مثال را مرور کنیم تا بفهمیم همه این‌ها چگونه کار می‌کنند:
 
 ![An example 4-level page hierarchy with each page table shown in physical memory. Entry 511 of the level 4 page is mapped to frame 4KiB, the frame of the level 4 table itself.](recursive-page-table.png)
 
-The only difference to the [example at the beginning of this post] is the additional entry at index `511` in the level 4 table, which is mapped to physical frame `4 KiB`, the frame of the level 4 table itself.
+تنها تفاوت با [مثال موجود در ابتدای این پست] ورودی اضافی در اندیس «511» در جدول سطح 4 است که به فریم فیزیکی «4KiB» نگاشت شده است، همان قاب خود جدول سطح 4.
 
-[example at the beginning of this post]: #accessing-page-tables
+[مثال موجود در ابتدای این پست]: #accessing-page-tables
 
-By letting the CPU follow this entry on a translation, it doesn't reach a level 3 table, but the same level 4 table again. This is similar to a recursive function that calls itself, therefore this table is called a _recursive page table_. The important thing is that the CPU assumes that every entry in the level 4 table points to a level 3 table, so it now treats the level 4 table as a level 3 table. This works because tables of all levels have the exact same layout on x86_64.
+با اجازه دادن به CPU که این ورودی را در ترجمه دنبال کند، به جدول سطح 3 نمی‌رسد، بلکه دوباره به همان جدول سطح 4 می‌رسد. این شبیه به یک تابع بازگشتی است که خودش را فراخوانی می‌کند، بنابراین این جدول یک جدول صفحه بازگشتی نامیده می‌شود. نکته مهم این است که CPU فرض می‌کند که هر ورودی در جدول سطح 4 به جدول سطح 3 اشاره می‌کند، بنابراین اکنون جدول سطح 4 را به عنوان جدول سطح 3 در نظر می‌گیرد. این مورد به این دلیل کار می‌کند که جداول همه سطوح دقیقاً طرح یکسانی در x86_64 دارند.
 
-By following the recursive entry one or multiple times before we start the actual translation, we can effectively shorten the number of levels that the CPU traverses. For example, if we follow the recursive entry once and then proceed to the level 3 table, the CPU thinks that the level 3 table is a level 2 table. Going further, it treats the level 2 table as a level 1 table and the level 1 table as the mapped frame. This means that we can now read and write the level 1 page table because the CPU thinks that it is the mapped frame. The graphic below illustrates the 5 translation steps:
+با دنبال کردن ورودی بازگشتی یک یا چند بار قبل از شروع ترجمه واقعی، می‌توانیم تعداد سطوحی را که CPU طی می‌کند، به طور مؤثر کوتاه کنیم. به عنوان مثال، اگر یک بار ورودی بازگشتی را دنبال کنیم و سپس به جدول سطح 3 برویم، CPU فکر می‌کند که جدول سطح 3 یک جدول سطح 2 است. در ادامه، جدول سطح 2 را به عنوان جدول سطح 1 و جدول سطح 1 را به عنوان فریم نگاشت شده در نظر می‌گیرد. این بدان معنی است که اکنون می‌توانیم خواندن و نوشتن را برای جدول صفحه سطح 1 انجام دهیم زیرا CPU فکر می‌کند که فریم نگاشت شده است. تصویر زیر 5 مرحله ترجمه را نشان می‌دهد:
 
 ![The above example 4-level page hierarchy with 5 arrows: "Step 0" from CR4 to level 4 table, "Step 1" from level 4 table to level 4 table, "Step 2" from level 4 table to level 3 table, "Step 3" from level 3 table to level 2 table, and "Step 4" from level 2 table to level 1 table.](recursive-page-table-access-level-1.png)
 
-Similarly, we can follow the recursive entry twice before starting the translation to reduce the number of traversed levels to two:
+به همین ترتیب، می‌توانیم قبل از شروع ترجمه، ورودی بازگشتی را دو بار دنبال کنیم تا تعداد سطوح پیموده شده را به دو کاهش دهیم:
 
 ![The same 4-level page hierarchy with the following 4 arrows: "Step 0" from CR4 to level 4 table, "Steps 1&2" from level 4 table to level 4 table, "Step 3" from level 4 table to level 3 table, and "Step 4" from level 3 table to level 2 table.](recursive-page-table-access-level-2.png)
 
-Let's go through it step by step: First, the CPU follows the recursive entry on the level 4 table and thinks that it reaches a level 3 table. Then it follows the recursive entry again and thinks that it reaches a level 2 table. But in reality, it is still on the level 4 table. When the CPU now follows a different entry, it lands on a level 3 table but thinks it is already on a level 1 table. So while the next entry points at a level 2 table, the CPU thinks that it points to the mapped frame, which allows us to read and write the level 2 table.
+بیایید مرحله به مرحله آن را مرور کنیم: ابتدا CPU ورودی بازگشتی جدول سطح 4 را دنبال می‌کند و فکر می‌کند که به جدول سطح 3 می‌رسد. سپس دوباره ورودی بازگشتی را دنبال می‌کند و فکر می‌کند که به جدول سطح 2 می‌رسد. اما در واقعیت همچنان در جدول سطح 4 قرار دارد. وقتی CPU اکنون ورودی دیگری را دنبال می‌کند، در جدول سطح 3 قرار می‌گیرد اما فکر می‌کند که از قبل در جدول سطح 1 قرار دارد. بنابراین در حالی که ورودی بعدی به جدول سطح 2 اشاره می‌کند، CPU فکر می‌کند که به فریم نگاشت شده اشاره می‌کند که این امکان را به ما می‌دهد که خواندن و نوشتن را برای جدول سطح 2 انجام دهیم.
 
-Accessing the tables of levels 3 and 4 works in the same way. For accessing the level 3 table, we follow the recursive entry three times, tricking the CPU into thinking it is already on a level 1 table. Then we follow another entry and reach a level 3 table, which the CPU treats as a mapped frame. For accessing the level 4 table itself, we just follow the recursive entry four times until the CPU treats the level 4 table itself as the mapped frame (in blue in the graphic below).
+
+دسترسی به جداول سطوح 3 و 4 نیز به همین صورت انجام شدنی است. برای دسترسی به جدول سطح 3، ورودی بازگشتی را سه بار دنبال می‌کنیم، و CPU را فریب می‌دهیم تا فکر کند در جدول سطح 1 قرار دارد. سپس ورودی دیگری را دنبال می‌کنیم و به جدول سطح 3 می‌رسیم که CPU آن را به عنوان یک فریم نگاشت شده در نظر می‌گیرد. برای دسترسی به خود جدول سطح 4، فقط ورودی بازگشتی را چهار بار دنبال می‌کنیم تا زمانی که CPU خود جدول سطح 4 را به عنوان قاب نگاشت شده (به رنگ آبی در تصویر زیر) در نظر بگیرد.
 
 ![The same 4-level page hierarchy with the following 3 arrows: "Step 0" from CR4 to level 4 table, "Steps 1,2,3" from level 4 table to level 4 table, and "Step 4" from level 4 table to level 3 table. In blue the alternative "Steps 1,2,3,4" arrow from level 4 table to level 4 table.](recursive-page-table-access-level-3.png)
 
-It might take some time to wrap your head around the concept, but it works quite well in practice.
+ممکن است کمی طول بکشد تا این مفهوم را به خوبی درک کنید، اما در عمل کاملاً خوب عمل می‌کند.
 
-In the section below we explain how to construct virtual addresses for following the recursive entry one or multiple times. We will not use recursive paging for our implementation, so you don't need to read it to continue with the post. If it interests you, just click on _"Address Calculation"_ to expand it.
+در بخش زیر نحوه ساخت آدرس‌های مجازی برای دنبال کردن ورودی بازگشتی یک یا چند بار را توضیح می‌دهیم. برای پیاده‌سازی خود از صفحه‌بندی بازگشتی استفاده نخواهیم کرد، بنابراین برای ادامه پست نیازی به خواندن آن نیست. اگر به علاقه‌مند هستید، روی _"Address Calculation"_ کلیک کنید و به خواندن ادامه دهید.
 
 ---
 
 <details>
 <summary><h4>Address Calculation</h4></summary>
 
-We saw that we can access tables of all levels by following the recursive entry once or multiple times before the actual translation. Since the indexes into the tables of the four levels are derived directly from the virtual address, we need to construct special virtual addresses for this technique. Remember, the page table indexes are derived from the address in the following way:
+دیدیم که می‌توانیم با دنبال کردن ورودی بازگشتی یک یا چند بار قبل از ترجمه واقعی به جداول همه سطوح دسترسی داشته باشیم. از آن‌جایی که اندیس‌های جداول چهار سطح مستقیماً از آدرس مجازی مشتق شده‌اند، باید آدرس‌های مجازی خاصی برای این تکنیک بسازیم. به یاد داشته باشید، فهرست‌های جدول صفحه از آدرس به روش زیر مشتق می‌شوند:
 
 ![Bits 0–12 are the page offset, bits 12–21 the level 1 index, bits 21–30 the level 2 index, bits 30–39 the level 3 index, and bits 39–48 the level 4 index](../paging-introduction/x86_64-table-indices-from-address.svg)
 
-Let's assume that we want to access the level 1 page table that maps a specific page. As we learned above, this means that we have to follow the recursive entry one time before continuing with the level 4, level 3, and level 2 indexes. To do that we move each block of the address one block to the right and set the original level 4 index to the index of the recursive entry:
+بیایید فرض کنیم که می خواهیم به جدول صفحه سطح 1 دسترسی داشته باشیم که یک صفحه خاص را نگاشت می‌کند. همان‌طور که در بالا یاد گرفتیم، این بدان معنی است که قبل از ادامه با اندیس‌های سطح 4، سطح 3 و سطح 2 باید یک بار ورودی بازگشتی را دنبال کنیم. برای انجام این کار، هر بلوک آدرس را یک بلوک به سمت راست منتقل می‌کنیم و اندیس سطح 4 اصلی را به اندیس ورودی بازگشتی تنظیم می‌کنیم:
 
 ![Bits 0–12 are the offset into the level 1 table frame, bits 12–21 the level 2 index, bits 21–30 the level 3 index, bits 30–39 the level 4 index, and bits 39–48 the index of the recursive entry](table-indices-from-address-recursive-level-1.svg)
 
-For accessing the level 2 table of that page, we move each index block two blocks to the right and set both the blocks of the original level 4 index and the original level 3 index to the index of the recursive entry:
+برای دسترسی به جدول سطح 2 آن صفحه، هر بلوکِ اندیس را دو بلوک به سمت راست منتقل می‌کنیم و هر دو بلوک اندیس سطح 4 اصلی و اندیس سطح 3 اصلی را به اندیس ورودی بازگشتی تنظیم می‌کنیم:
 
 ![Bits 0–12 are the offset into the level 2 table frame, bits 12–21 the level 3 index, bits 21–30 the level 4 index, and bits 30–39 and bits 39–48 are the index of the recursive entry](table-indices-from-address-recursive-level-2.svg)
 
-Accessing the level 3 table works by moving each block three blocks to the right and using the recursive index for the original level 4, level 3, and level 2 address blocks:
+دسترسی به جدول سطح 3، با جابجا کردن هر بلوک، به اندازه سه بلوک به سمت راست و استفاده از اندیس بازگشتی برای بلوک‌های آدرس اصلی سطح 4، سطح 3 و سطح 2 کار می‌کند:
 
 ![Bits 0–12 are the offset into the level 3 table frame, bits 12–21 the level 4 index, and bits 21–30, bits 30–39 and bits 39–48 are the index of the recursive entry](table-indices-from-address-recursive-level-3.svg)
 
-Finally, we can access the level 4 table by moving each block four blocks to the right and using the recursive index for all address blocks except for the offset:
+در نهایت، می‌توانیم با جابجایی هر بلوک به اندازه چهار بلوک به سمت راست و استفاده از اندیس بازگشتی برای همه بلوک‌های آدرس به جز برای آفست، به جدول سطح 4 دسترسی پیدا کنیم:
 
 ![Bits 0–12 are the offset into the level l table frame and bits 12–21, bits 21–30, bits 30–39 and bits 39–48 are the index of the recursive entry](table-indices-from-address-recursive-level-4.svg)
 
-We can now calculate virtual addresses for the page tables of all four levels. We can even calculate an address that points exactly to a specific page table entry by multiplying its index by 8, the size of a page table entry.
+اکنون می‌توانیم آدرس‌های مجازی را برای جداول صفحه هر چهار سطح محاسبه کنیم. ما حتی می‌توانیم آدرسی را محاسبه کنیم که دقیقاً به یک ورودی جدول صفحه خاص اشاره می‌کند، با ضرب اندیس آن در 8، همان اندازه ورودی جدول صفحه.
 
-The table below summarizes the address structure for accessing the different kinds of frames:
+جدول زیر ساختار آدرس برای دسترسی به انواع مختلف فریم‌ها را خلاصه می‌کند:
 
 Virtual Address for | Address Structure ([octal])
 ------------------- | -------------------------------
@@ -184,13 +185,13 @@ Level 4 Table Entry | `0o_SSSSSS_RRR_RRR_RRR_RRR_AAAA`
 
 [octal]: https://en.wikipedia.org/wiki/Octal
 
-Whereas `AAA` is the level 4 index, `BBB` the level 3 index, `CCC` the level 2 index, and `DDD` the level 1 index of the mapped frame, and `EEEE` the offset into it. `RRR` is the index of the recursive entry. When an index (three digits) is transformed to an offset (four digits), it is done by multiplying it by 8 (the size of a page table entry). With this offset, the resulting address directly points to the respective page table entry.
+در حالی که «AAA» شاخص سطح 4، «BBB» شاخص سطح 3، «CCC» شاخص سطح 2، و «DDD» شاخص سطح 1 قاب نگاشت شده، و «EEEE» آفست در آن است. "RRR" شاخص ورودی بازگشتی است. هنگامی که یک شاخص (سه رقم) به یک آفست (چهار رقم) تبدیل می‌شود، با ضرب آن در 8 (اندازه یک ورودی جدول صفحه) انجام می‌شود. با این آفست، آدرس حاصل مستقیماً به ورودی جدول صفحه مربوطه اشاره می‌کند.
 
-`SSSSSS` are sign extension bits, which means that they are all copies of bit 47. This is a special requirement for valid addresses on the x86_64 architecture. We explained it in the [previous post][sign extension].
+رشته `SSSSSS` بیت‌های پسوند علامت هستند، به این معنی که همه آن‌ها کپی بیت 47 هستند. این یک الزام ویژه برای آدرس‌های معتبر در معماری x86_64 است. در [پست قبلی][sign extension] توضیح دادیم.
 
 [sign extension]: @/edition-2/posts/08-paging-introduction/index.md#paging-on-x86-64
 
-We use [octal] numbers for representing the addresses since each octal character represents three bits, which allows us to clearly separate the 9-bit indexes of the different page table levels. This isn't possible with the hexadecimal system where each character represents four bits.
+ما از اعداد [octal] برای نشان دادن آدرس‌ها استفاده می‌کنیم زیرا هر کاراکتر اکتال نشان دهنده سه بیت است که به ما اجازه می‌دهد به وضوح نمایه‌های 9 بیتی سطوح مختلف جدول صفحه را از هم جدا کنیم. این کار با سیستم هگزادسیمال که هر کاراکتر نشان دهنده چهار بیت است امکان پذیر نیست.
 
 ##### In Rust Code
 
