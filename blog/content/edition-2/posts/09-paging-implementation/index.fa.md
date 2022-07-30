@@ -85,7 +85,7 @@ rtl = true
 
 نقطه ضعف این رویکرد این است که جداول صفحه اضافی برای ذخیره‌سازی نگاشت حافظه فیزیکی مورد نیاز است. این جداول صفحه باید در جایی ذخیره شوند، بنابراین بخشی از حافظه فیزیکی را مصرف می‌کنند، که می‌تواند در دستگاه‌هایی که حافظه کمی دارند مشکل ساز شود.
 
-با این حال، در x86_64، به جای صفحات پیش‌فرض 4KiB، می‌توانیم از [صفحات عظیم] با اندازه 2MiB برای نگاشت کردن استفاده کنیم. به این ترتیب، نگاشت 32GiB حافظه فیزیکی تنها به 132KiB برای جداول صفحه نیاز دارد زیرا تنها به یک جدول سطح 3 و 32 جدول سطح 2 نیاز است. صفحات بزرگ نیز از آن‌جایی که از ورودی‌های کمتری در TLB استفاده می‌کنند، در حافظه پنهان کارآمدتر هستند.
+با این حال، در x86_64، به جای صفحات پیش‌فرض 4KiB، می‌توانیم از [صفحات عظیم] با اندازه 2MiB برای نگاشت کردن استفاده کنیم. به این ترتیب، نگاشت 32GiB حافظه فیزیکی تنها به 132KiB برای جداول صفحه نیاز دارد زیرا تنها به یک جدول سطح 3 و 32 جدول سطح 2 نیاز است. صفحات بزرگ نیز از آن‌جایی که از ورودی‌های کمتری در TLB استفاده می‌کنند، در حافظه نهان کارآمدتر هستند.
 
 [صفحات عظیم]: https://en.wikipedia.org/wiki/Page_%28computer_memory%29#Multiple_page_sizes
 
@@ -195,7 +195,7 @@ Level 4 Table Entry | `0o_SSSSSS_RRR_RRR_RRR_RRR_AAAA`
 
 ##### In Rust Code
 
-To construct such addresses in Rust code, you can use bitwise operations:
+برای ساخت چنین آدرس‌هایی به زبان راست، می‌توانید از عملیات بیتی استفاده کنید:
 
 ```rust
 // the virtual address whose corresponding page tables you want to access
@@ -222,9 +222,9 @@ let level_1_table_addr =
     sign | (r << 39) | (l4_idx << 30) | (l3_idx << 21) | (l2_idx << 12);
 ```
 
-The above code assumes that the last level 4 entry with index `0o777` (511) is recursively mapped. This isn't the case currently, so the code won't work yet. See below on how to tell the bootloader to set up the recursive mapping.
+کد بالا فرض می‌کند که آخرین ورودی سطح 4 با شاخص `0o777` (511) به صورت بازگشتی نگاشت شده است. در حال حاضر این‌طور نیست، بنابراین کد هنوز کار نخواهد کرد. در زیر ببینید که چگونه به بوت‌لودر بگوییم نگاشت بازگشتی را تنظیم کند.
 
-Alternatively to performing the bitwise operations by hand, you can use the [`RecursivePageTable`] type of the `x86_64` crate, which provides safe abstractions for various page table operations. For example, the code below shows how to translate a virtual address to its mapped physical address:
+به‌جای انجام عملیات بیتی با دست، می‌توانید از نوع ['RecursivePageTable'] جعبه 'x86_64' استفاده کنید، که انتزاعات ایمن را برای عملیات‌های مختلف جدول صفحه فراهم می‌کند. به عنوان مثال، کد زیر نحوه ترجمه یک آدرس مجازی را به آدرس فیزیکی نگاشت شده آن نشان می‌دهد:
 
 [`RecursivePageTable`]: https://docs.rs/x86_64/0.14.2/x86_64/structures/paging/mapper/struct.RecursivePageTable.html
 
@@ -253,53 +253,54 @@ let frame = recursive_page_table.translate_page(page);
 frame.map(|frame| frame.start_address() + u64::from(addr.page_offset()))
 ```
 
+باز هم، یک نگاشت بازگشتی معتبر برای این کد مورد نیاز است. با چنین نگاشتی، «level_4_table_addr» گم شده را می‌توان مانند مثال کد اول محاسبه کرد.
 Again, a valid recursive mapping is required for this code. With such a mapping, the missing `level_4_table_addr` can be calculated as in the first code example.
 
 </details>
 
 ---
 
-Recursive Paging is an interesting technique that shows how powerful a single mapping in a page table can be. It is relatively easy to implement and only requires a minimal amount of setup (just a single recursive entry), so it's a good choice for first experiments with paging.
+صفحه‌بندی بازگشتی یک تکنیک جالب است که نشان می‌دهد یک نگاشت واحد در یک جدول صفحه چقدر می‌تواند قدرتمند باشد. پیاده‌سازی آن نسبتاً آسان است و فقط به حداقل مقدار راه‌اندازی نیاز دارد (فقط یک ورودی بازگشتی)، بنابراین انتخاب خوبی برای اولین آزمایش‌های صفحه‌بندی است.
 
-However, it also has some disadvantages:
+با این حال، معایبی نیز دارد:
 
-- It occupies a large amount of virtual memory (512GiB). This isn't a big problem in the large 48-bit address space, but it might lead to suboptimal cache behavior.
-- It only allows accessing the currently active address space easily. Accessing other address spaces is still possible by changing the recursive entry, but a temporary mapping is required for switching back. We described how to do this in the (outdated) [_Remap The Kernel_] post.
-- It heavily relies on the page table format of x86 and might not work on other architectures.
+- حجم زیادی از حافظه مجازی (512 گیگابایت) را اشغال می‌کند. این یک مشکل بزرگ در فضای آدرس بزرگ 48 بیتی نیست، اما ممکن است منجر به کاهش بهینه بودن رفتار حافظه نهان شود.
+- فقط اجازه می‌دهد تا به راحتی به فضای آدرس فعال فعلی دسترسی پیدا کنید. دسترسی به سایر فضاهای آدرس همچنان با تغییر ورودی بازگشتی امکان‌پذیر است، اما یک نقشه موقت برای جابجایی مجدد لازم است. نحوه انجام این کار را در پست [_Remap The Kernel_] (منسوخ شده) توضیح دادیم.
+- به شدت به فرمت جدول صفحه x86 متکی است و ممکن است روی معماری‌های دیگر کار نکند.
 
 [_Remap The Kernel_]: https://os.phil-opp.com/remap-the-kernel/#overview
 
-## Bootloader Support
+## پشتیبانی از بوت‌لودر
 
-All of these approaches require page table modifications for their setup. For example, mappings for the physical memory need to be created or an entry of the level 4 table needs to be mapped recursively. The problem is that we can't create these required mappings without an existing way to access the page tables.
+همه این رویکردها برای تنظیم خود نیاز به اصلاحات جدول صفحه دارند. به عنوان مثال، نقشه برای حافظه فیزیکی باید ایجاد شود یا ورودی جدول سطح 4 به صورت بازگشتی نگاشت شود. مشکل این است که ما نمی‌توانیم این نگاشت‌های مورد نیاز را بدون یک راه موجود برای دسترسی به جداول صفحه ایجاد کنیم.
 
-This means that we need the help of the bootloader, which creates the page tables that our kernel runs on. The bootloader has access to the page tables, so it can create any mappings that we need. In its current implementation, the `bootloader` crate has support for two of the above approaches, controlled through [cargo features]:
+این بدان معناست که ما به کمک بوت‌لودر نیاز داریم که جداول صفحه‌ای را که هسته ما روی آن اجرا می‌شود ایجاد می‌کند. بوت‌لودر به جداول صفحه دسترسی دارد، بنابراین می‌تواند هر نگاشتی را که ما نیاز داریم ایجاد کند. در پیاده‌سازی فعلی، جعبه «bootloader» از دو رویکرد فوق پشتیبانی می‌کند که از طریق [ویژگی‌های کارگو] کنترل می‌شوند:
 
 [cargo features]: https://doc.rust-lang.org/cargo/reference/features.html#the-features-section
 
-- The `map_physical_memory` feature maps the complete physical memory somewhere into the virtual address space. Thus, the kernel can access all physical memory and can follow the [_Map the Complete Physical Memory_](#map-the-complete-physical-memory) approach.
-- With the `recursive_page_table` feature, the bootloader maps an entry of the level 4 page table recursively. This allows the kernel to access the page tables as described in the [_Recursive Page Tables_](#recursive-page-tables) section.
+- ویژگی 'map_physical_memory' حافظه فیزیکی را به صورت کامل در فضای آدرس مجازی نگاشت می‌کند. بنابراین، هسته می‌تواند به تمام حافظه فیزیکی دسترسی داشته باشد و می‌تواند از رویکرد [_Map the Complete Physical Memory_](#map-the-complete-physical-memory) پیروی کند.
+- با ویژگی `recursive_page_table`،  بوت‌لودر ورودی جدول صفحه سطح 4 را به صورت بازگشتی ترسیم می‌کند. این به هسته اجازه می‌دهد تا به جداول صفحه همان‌طور که در بخش [_Recursive Page Tables_](#recursive-page-tables) توضیح داده شده است، دسترسی پیدا کند.
 
-We choose the first approach for our kernel since it is simple, platform-independent, and more powerful (it also allows access to non-page-table-frames). To enable the required bootloader support, we add the `map_physical_memory` feature to our `bootloader` dependency:
+ما اولین رویکرد را برای هسته خود انتخاب می‌کنیم زیرا ساده، مستقل از پلتفرم و قدرتمندتر است (همچنین امکان دسترسی به قاب‌های که مربوط به جدول صفحه نیستند را نیز فراهم می‌کند). برای فعال کردن پشتیبانی بوت‌لودر مورد نیاز، ویژگی «map_physical_memory» را به وابستگی «bootloader» خود اضافه می‌کنیم:
 
 ```toml
 [dependencies]
 bootloader = { version = "0.9.8", features = ["map_physical_memory"]}
 ```
 
-With this feature enabled, the bootloader maps the complete physical memory to some unused virtual address range. To communicate the virtual address range to our kernel, the bootloader passes a _boot information_ structure.
+با فعال بودن این ویژگی، بوت لودر حافظه فیزیکی را به صورت کامل به محدوده آدرس مجازی استفاده نشده نگاشت می‌کند. برای برقراری ارتباط محدوده آدرس مجازی با هسته ما، بوت‌لودر ساختار _boot information_ را ارسال می‌کند.
 
-### Boot Information
+### اطلاعات بوت
 
-The `bootloader` crate defines a [`BootInfo`] struct that contains all the information it passes to our kernel. The struct is still in an early stage, so expect some breakage when updating to future [semver-incompatible] bootloader versions. With the `map_physical_memory` feature enabled, it currently has the two fields `memory_map` and `physical_memory_offset`:
+جعبه «bootloader» یک ساختمان ['BootInfo'] را تعریف می‌کند که حاوی تمام اطلاعاتی است که به هسته ما ارسال می‌کند. این ساختمان هنوز در مرحله اولیه است، بنابراین هنگام بروزرسانی به نسخه‌های بوت‌لودر [semver-incompatible] آینده، انتظار کمی مشکل را داشته باشید. با فعال بودن ویژگی `map_physical_memory`، در حال حاضر دارای دو فیلد `memory_map` و `physical_memory_offset` است:
 
 [`BootInfo`]: https://docs.rs/bootloader/0.9.3/bootloader/bootinfo/struct.BootInfo.html
 [semver-incompatible]: https://doc.rust-lang.org/stable/cargo/reference/specifying-dependencies.html#caret-requirements
 
-- The `memory_map` field contains an overview of the available physical memory. This tells our kernel how much physical memory is available in the system and which memory regions are reserved for devices such as the VGA hardware. The memory map can be queried from the BIOS or UEFI firmware, but only very early in the boot process. For this reason, it must be provided by the bootloader because there is no way for the kernel to retrieve it later. We will need the memory map later in this post.
-- The `physical_memory_offset` tells us the virtual start address of the physical memory mapping. By adding this offset to a physical address, we get the corresponding virtual address. This allows us to access arbitrary physical memory from our kernel.
+- قسمت `memory_map` شامل نمای کلی حافظه فیزیکی موجود است. این به هسته ما می‌گوید که چه مقدار حافظه فیزیکی در سیستم موجود است و کدام مناطق حافظه برای دستگاه‌هایی مانند سخت افزار VGA رزرو شده است. نقشه حافظه را می‌توان از ثابت‌افزار (firmware) BIOS یا UEFI جستجو کرد، اما فقط در اوایل فرآیند بوت. به همین دلیل، باید توسط بوت‌لودر ارائه شود، زیرا هیچ راهی برای بازیابی آن توسط هسته وجود ندارد. در ادامه این پست به نقشه حافظه نیاز خواهیم داشت.
+- مقدار `physical_memory_offset` آدرس شروع مجازی نگاشت حافظه فیزیکی را به ما می‌گوید. با افزودن این آفست به یک آدرس فیزیکی، آدرس مجازی مربوطه را دریافت می‌کنیم. این به ما اجازه می‌دهد تا به حافظه فیزیکی دلخواه از هسته خود دسترسی پیدا کنیم.
 
-The bootloader passes the `BootInfo` struct to our kernel in the form of a `&'static BootInfo` argument to our `_start` function. We don't have this argument declared in our function yet, so let's add it:
+بوت‌لودر ساختمان `BootInfo` را به شکل آرگومان `&'static BootInfo` به تابع `_start` به هسته ارسال می‌کند. ما هنوز این آرگومان را در تابع خود نداریم، پس بیایید آن را اضافه کنیم:
 
 ```rust
 // in src/main.rs
@@ -312,13 +313,13 @@ pub extern "C" fn _start(boot_info: &'static BootInfo) -> ! { // new argument
 }
 ```
 
-It wasn't a problem to leave off this argument before because the x86_64 calling convention passes the first argument in a CPU register. Thus, the argument is simply ignored when it isn't declared. However, it would be a problem if we accidentally used a wrong argument type, since the compiler doesn't know the correct type signature of our entry point function.
+رها کردن این آرگومان قبلاً مشکلی نبود زیرا قرارداد فراخوانی x86_64 اولین آرگومان را در یک ثبات CPU ارسال می‌کند. بنابراین، زمانی که آرگومان اعلام نشده باشد به سادگی نادیده گرفته می‌شود. با این حال، اگر به طور تصادفی از یک نوع آرگومان اشتباه استفاده کنیم، مشکل ایجاد می‌شود، زیرا کامپایلر امضای نوع صحیح تابع نقطه ورودی ما را نمی‌داند.
 
-### The `entry_point` Macro
+### ماکروی `entry_point`
 
-Since our `_start` function is called externally from the bootloader, no checking of our function signature occurs. This means that we could let it take arbitrary arguments without any compilation errors, but it would fail or cause undefined behavior at runtime.
+از آن‌جایی که تابع '_start' ما به صورت خارجی از بوت‌لودر فراخوانی می‌شود، هیچ بررسی‌ای از امضای تابع ما انجام نمی‌شود. این بدان معناست که می‌توانیم اجازه دهیم آرگومان‌های دلخواه دریافت کند بدون این‌که هیچ خطای کامپایلی رخ دهد، اما در زمان اجرا شکست می‌خورد یا باعث رفتار نامشخص می‌شود.
 
-To make sure that the entry point function has always the correct signature that the bootloader expects, the `bootloader` crate provides an [`entry_point`] macro that provides a type-checked way to define a Rust function as the entry point. Let's rewrite our entry point function to use this macro:
+برای اطمینان از این‌که تابعِ نقطه ورودی همیشه دارای امضای صحیحی است که بوت‌لودر انتظار دارد، جعبه «bootloader» یک ماکرو [«entry_point»] ارائه می‌کند که یک روش بررسی شده برای تعریف تابع راست به عنوان نقطه ورودی ارائه می‌کند. بیایید تابع نقطه ورودی خود را برای استفاده از این ماکرو بازنویسی کنیم:
 
 [`entry_point`]: https://docs.rs/bootloader/0.6.4/bootloader/macro.entry_point.html
 
@@ -334,9 +335,9 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
 }
 ```
 
-We no longer need to use `extern "C"` or `no_mangle` for our entry point, as the macro defines the real lower level `_start` entry point for us. The `kernel_main` function is now a completely normal Rust function, so we can choose an arbitrary name for it. The important thing is that it is type-checked so that a compilation error occurs when we use a wrong function signature, for example by adding an argument or changing the argument type.
+دیگر نیازی به استفاده از `extern "C"` یا `no_mangle` برای نقطه ورودی خود نداریم، زیرا ماکرو نقطه ورودی سطح پایین‌تر `_start` را برای ما تعریف می‌کند. تابع «kernel_main» اکنون یک تابع راست کاملاً عادی است، بنابراین می‌توانیم یک نام دلخواه برای آن انتخاب کنیم. نکته مهم این است که نوع بررسی شود تا زمانی که از یک امضای تابع اشتباه استفاده می‌کنیم، مثلاً با اضافه کردن یک آرگومان یا تغییر نوع آرگومان، خطای کامپایل رخ می‌دهد.
 
-Let's perform the same change in our `lib.rs`:
+بیایید همان تغییر را در `lib.rs` نیز انجام دهیم:
 
 ```rust
 // in src/lib.rs
@@ -357,7 +358,7 @@ fn test_kernel_main(_boot_info: &'static BootInfo) -> ! {
 }
 ```
 
-Since the entry point is only used in test mode, we add the `#[cfg(test)]` attribute to all items. We give our test entry point the distinct name `test_kernel_main` to avoid confusion with the `kernel_main` of our `main.rs`. We don't use the `BootInfo` parameter for now, so we prefix the parameter name with a `_` to silence the unused variable warning.
+از آن‌جایی که نقطه ورودی فقط در حالت تست استفاده می‌شود، ویژگی `#[cfg(test)]` را به همه موارد اضافه می‌کنیم. ما به نقطه ورودی آزمایشی خود نام متمایز «test_kernel_main» می‌دهیم تا از اشتباه گرفتن «kernel_main» از «main.rs» جلوگیری کنیم. ما فعلاً از پارامتر «BootInfo» استفاده نمی‌کنیم، بنابراین نام پارامتر را با یک پیشوند «_» می‌گذاریم تا هشدار متغیر استفاده نشده خاموش شود.
 
 ## Implementation
 
