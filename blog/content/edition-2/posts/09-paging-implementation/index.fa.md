@@ -28,7 +28,7 @@ rtl = true
 
 ## مقدمه
 
-[پست قبلی] مقدمه‌ای بر مفهوم صفحه‌بندی ارائه داد. صفحه‌بندی را با مقایسه آن با تقسیم‌بندی یک گزینه بهتر نشان داد، نحوه عملکرد صفحه‌بندی و جدول‌های صفحه را توضیح داد و سپس طراحی جدول صفحه 4 سطحی «x86_64» را معرفی کرد. ما متوجه شدیم که بوت‌لودر قبلاً یک سلسله مراتب جدول صفحه را برای هسته ما تنظیم کرده است، به این معنی که هسته ما قبلاً روی آدرس‌های مجازی اجرا می‌شود. این امر ایمنی را بهبود می‌بخشد زیرا دسترسی‌های غیرقانونی به حافظه باعث ایجاد استثناهای خطای صفحه بجای تغییر حافظه فیزیکی دلخواه می‌شود.
+[پست قبلی] مقدمه‌ای بر مفهوم صفحه‌بندی ارائه داد. صفحه‌بندی را با مقایسه آن با تقسیم‌بندی یک گزینه بهتر نشان داد، نحوه عملکرد صفحه‌بندی و جدول‌های صفحه را توضیح داد و سپس طراحی جدول صفحه 4 سطحی «x86_64» را معرفی کرد. ما متوجه شدیم که بوت‌لودر قبلاً یک سلسله مراتب جدول صفحه را برای هسته ما تنظیم کرده است، به این معنی که هسته ما قبلاً روی آدرس‌های مجازی اجرا می‌شود. این امر ایمنی را بهبود می‌بخشد زیرا دسترسی‌های غیرقانونی به حافظه باعث ایجاد استثناهای خطای صفحه به جای تغییر حافظه فیزیکی دلخواه می‌شود.
 
 [پست قبلی]: @/edition-2/posts/08-paging-introduction/index.md
 
@@ -56,7 +56,7 @@ rtl = true
 
 ![A virtual and a physical address space with various virtual pages mapped to the physical frame with the same address](identity-mapped-page-tables.svg)
 
-در این مثال، ما قاب‌های جدول صفحه با نگاشت هویت شده مختلف را می‌بینیم. به این ترتیب آدرس‌های فیزیکی جداول صفحه نیز آدرس‌های مجازی معتبری هستند تا بتوانیم به راحتی به جداول صفحه همه سطوح از ثبات CR3 دسترسی داشته باشیم.
+در این مثال، ما قاب‌های جدول صفحه با نگاشت هویت شده مختلف را می‌بینیم. به این ترتیب آدرس‌های فیزیکی جداول صفحه نیز آدرس‌های مجازی معتبری هستند تا بتوانیم به راحتی به جداول صفحه همه سطوح که اولین آن ثبات CR3 است دسترسی داشته باشیم.
 
 با این حال، فضای آدرس مجازی را به هم ریخته و یافتن بخش منطقه‌های پیوسته با اندازه‌های بزرگتر را دشوارتر می‌کند. به عنوان مثال، تصور کنید که می‌خواهیم یک منطقه حافظه مجازی به اندازه 1000 کیلوبایت در گرافیک بالا ایجاد کنیم، برای مثال برای [نگاشت حافظه یک فایل]. ما نمی‌توانیم منطقه را با «28KiB» شروع کنیم، زیرا با صفحه از قبل نگاشت شده در «1004KiB» برخورد می‌کند. بنابراین باید بیشتر جستجو کنیم تا زمانی که یک منطقه به اندازه کافی بزرگ و بدون نگاشت پیدا کنیم، برای مثال در `1008KiB`. این یک مشکل تکه‌تکه شدن مشابه با [تقسیم‌بندی] است.
 
@@ -360,11 +360,11 @@ fn test_kernel_main(_boot_info: &'static BootInfo) -> ! {
 
 از آن‌جایی که نقطه ورودی فقط در حالت تست استفاده می‌شود، ویژگی `#[cfg(test)]` را به همه موارد اضافه می‌کنیم. ما به نقطه ورودی آزمایشی خود نام متمایز «test_kernel_main» می‌دهیم تا از اشتباه گرفتن «kernel_main» از «main.rs» جلوگیری کنیم. ما فعلاً از پارامتر «BootInfo» استفاده نمی‌کنیم، بنابراین نام پارامتر را با یک پیشوند «_» می‌گذاریم تا هشدار متغیر استفاده نشده خاموش شود.
 
-## Implementation
+## پیاده‌سازی
 
-Now that we have access to physical memory, we can finally start to implement our page table code. First, we will take a look at the currently active page tables that our kernel runs on. In the second step, we will create a translation function that returns the physical address that a given virtual address is mapped to. As the last step, we will try to modify the page tables in order to create a new mapping.
+اکنون که به حافظه فیزیکی دسترسی داریم، در نهایت می‌توانیم شروع به پیاده‌سازی کد جدول صفحه خود کنیم. ابتدا نگاهی به جداول صفحه‌ای که در حال حاضر فعال هستند که هسته ما روی آن‌ها اجرا می‌شود خواهیم انداخت. در مرحله دوم، یک تابع ترجمه ایجاد می‌کنیم که آدرس فیزیکی را که آدرس مجازی داده شده به آن نگاشت شده است، برمی‌گرداند. به عنوان آخرین مرحله، سعی می‌کنیم جداول صفحه را به منظور ایجاد یک نگاشت جدید تغییر دهیم.
 
-Before we begin, we create a new `memory` module for our code:
+قبل از شروع، ما یک ماژول `memory` جدید برای کد خود ایجاد می‌کنیم:
 
 ```rust
 // in src/lib.rs
@@ -372,13 +372,13 @@ Before we begin, we create a new `memory` module for our code:
 pub mod memory;
 ```
 
-For the module we create an empty `src/memory.rs` file.
+برای ماژول یک فایل خالی `src/memory.rs` ایجاد می‌کنیم.
 
-### Accessing the Page Tables
+### دسترسی به جدول صفحه‌ها
 
-At the [end of the previous post], we tried to take a look at the page tables our kernel runs on, but failed since we couldn't access the physical frame that the `CR3` register points to. We're now able to continue from there by creating an `active_level_4_table` function that returns a reference to the active level 4 page table:
+در [پایان پست قبلی]، سعی کردیم به جداول صفحه‌ای که هسته ما روی آن‌ها اجرا می‌شود نگاهی بیندازیم، اما موفق نشدیم زیرا نتوانستیم به فریم فیزیکی که ثبات `CR3` به آن اشاره می‌کند دسترسی پیدا کنیم. اکنون می‌توانیم با ایجاد یک تابع «active_level_4_table» که مرجعی را به جدول صفحه فعال سطح 4 برمی‌گرداند، از ادامه پست قبل کار را از سر بگیریم:
 
-[end of the previous post]: @/edition-2/posts/08-paging-introduction/index.md#accessing-the-page-tables
+[پایان پست قبلی]: @/edition-2/posts/08-paging-introduction/index.md#accessing-the-page-tables
 
 ```rust
 // in src/memory.rs
@@ -409,11 +409,11 @@ pub unsafe fn active_level_4_table(physical_memory_offset: VirtAddr)
 }
 ```
 
-First, we read the physical frame of the active level 4 table from the `CR3` register. We then take its physical start address, convert it to an `u64`, and add it to `physical_memory_offset` to get the virtual address where the page table frame is mapped. Finally, we convert the virtual address to a `*mut PageTable` raw pointer through the `as_mut_ptr` method and then unsafely create a `&mut PageTable` reference from it. We create a `&mut` reference instead of a `&` reference because we will mutate the page tables later in this post.
+ابتدا قاب فیزیکی جدول فعال سطح 4 را از ثبات `CR3` می‌خوانیم. سپس آدرس شروع فیزیکی آن را می‌گیریم، آن را به «u64» تبدیل می‌کنیم، و آن را به «physical_memory_offset» اضافه می‌کنیم تا آدرس مجازی که در آن قاب جدول صفحه نگاشت شده است را به دست آوریم. در نهایت، آدرس مجازی را از طریق متد «as_mut_ptr» به یک اشاره‌گر خام «*mut PageTable» تبدیل می‌کنیم و سپس یک مرجع «&mut PageTable» از آن ایجاد می‌کنیم. یک مرجع «&mut» به جای مرجع «&» ایجاد می‌کنیم زیرا در ادامه این پست، جداول صفحه را تغییر می‌دهیم.
 
-We don't need to use an unsafe block here because Rust treats the complete body of an `unsafe fn` like a large `unsafe` block. This makes our code more dangerous since we could accidentally introduce an unsafe operation in previous lines without noticing. It also makes it much more difficult to spot the unsafe operations. There is an [RFC](https://github.com/rust-lang/rfcs/pull/2585) to change this behavior.
+ما در اینجا نیازی به استفاده از یک بلوک ناامن نداریم زیرا راست با کل بدنه یک «unsafe fn» مانند یک بلوک بزرگ «unsafe» رفتار می‌کند. این باعث می‌شود کد ما خطرناک‌تر شود، زیرا می‌توانیم به طور تصادفی یک عملیات ناامن را بدون توجه به خطوط قبلی تعریف کنیم. همچنین تشخیص عملیات ناامن را بسیار دشوارتر می‌کند. یک [RFC](https://github.com/rust-lang/rfcs/pull/2585) برای تغییر این رفتار وجود دارد.
 
-We can now use this function to print the entries of the level 4 table:
+اکنون می‌توانیم از این تابع برای چاپ ورودی‌های جدول سطح 4 استفاده کنیم:
 
 ```rust
 // in src/main.rs
@@ -443,18 +443,18 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
 }
 ```
 
-First, we convert the `physical_memory_offset` of the `BootInfo` struct to a [`VirtAddr`] and pass it to the `active_level_4_table` function. We then use the `iter` function to iterate over the page table entries and the [`enumerate`] combinator to additionally add an index `i` to each element. We only print non-empty entries because all 512 entries wouldn't fit on the screen.
+ابتدا، `physical_memory_offset` از ساختمان `BootInfo` را به یک [`VirtAddr`] تبدیل می‌کنیم و آن را به تابع `active_level_4_table` عبور می‌دهیم. سپس از تابع `iter` برای پیمایش روی ورودی‌های جدول صفحه و از ترکیب‌کننده [`Enumerate`] برای اضافه کردن یک شاخص `i` به هر عنصر استفاده می‌کنیم. ما فقط ورودی‌های غیر خالی را چاپ می‌کنیم زیرا همه 512 ورودی روی صفحه جا نمی‌شوند.
 
 [`VirtAddr`]: https://docs.rs/x86_64/0.14.2/x86_64/addr/struct.VirtAddr.html
 [`enumerate`]: https://doc.rust-lang.org/core/iter/trait.Iterator.html#method.enumerate
 
-When we run it, we see the following output:
+وقتی آن را اجرا می‌کنیم، خروجی زیر را می‌بینیم:
 
 ![QEMU printing entry 0 (0x2000, PRESENT, WRITABLE, ACCESSED), entry 1 (0x894000, PRESENT, WRITABLE, ACCESSED, DIRTY), entry 31 (0x88e000, PRESENT, WRITABLE, ACCESSED, DIRTY), entry 175 (0x891000, PRESENT, WRITABLE, ACCESSED, DIRTY), and entry 504 (0x897000, PRESENT, WRITABLE, ACCESSED, DIRTY)](qemu-print-level-4-table.png)
 
-We see that there are various non-empty entries, which all map to different level 3 tables. There are so many regions because kernel code, kernel stack, the physical memory mapping, and the boot information all use separate memory areas.
+می بینیم که ورودی‌های غیر خالی مختلفی وجود دارد که همگی به جداول سطح 3 مختلفی نگاشت می‌شوند. ناحیه‌های بسیار زیادی وجود دارد زیرا کد هسته، پشته هسته، نقشه حافظه فیزیکی و اطلاعات بوت همگی از ناحیه‌های حافظه جداگانه استفاده می‌کنند.
 
-To traverse the page tables further and take a look at a level 3 table, we can take the mapped frame of an entry and convert it to a virtual address again:
+برای پیمایش بیشتر جداول صفحه و نگاهی به جدول سطح 3، می‌توانیم فریم نگاشت شده یک ورودی را گرفته و دوباره آن را به یک آدرس مجازی تبدیل کنیم:
 
 ```rust
 // in the `for` loop in src/main.rs
@@ -479,13 +479,13 @@ if !entry.is_unused() {
 }
 ```
 
-For looking at the level 2 and level 1 tables, we repeat that process for the level 3 and level 2 entries. As you can imagine, this gets very verbose quickly, so we don't show the full code here.
+برای مشاهده جداول سطح 2 و سطح 1، این روند را برای ورودی‌های سطح 3 و سطح 2 تکرار می‌کنیم. همان‌طور که می‌توانید تصور کنید، این به سرعت بسیار شلوغ و طولانی می‌شود، بنابراین ما کد کامل را در اینجا نشان نمی‌دهیم.
 
-Traversing the page tables manually is interesting because it helps to understand how the CPU performs the translation. However, most of the time we are only interested in the mapped physical address for a given virtual address, so let's create a function for that.
+پیمایش جداول صفحه به صورت دستی جالب است زیرا به درک نحوه انجام ترجمه توسط CPU کمک می‌کند. با این حال، بیشتر اوقات ما فقط به آدرس فیزیکی نگاشت شده برای یک آدرس مجازی معین را می‌خواهیم، بنابراین بیایید یک تابع برای آن ایجاد کنیم.
 
-### Translating Addresses
+### ترجمه آدرس‌ها
 
-For translating a virtual to a physical address, we have to traverse the four-level page table until we reach the mapped frame. Let's create a function that performs this translation:
+برای ترجمه یک آدرس مجازی به فیزیکی، باید جدول چهار سطحی صفحه را طی کنیم تا به فریم نگاشت شده برسیم. بیایید تابعی ایجاد کنیم که این ترجمه را انجام دهد:
 
 ```rust
 // in src/memory.rs
@@ -505,9 +505,9 @@ pub unsafe fn translate_addr(addr: VirtAddr, physical_memory_offset: VirtAddr)
 }
 ```
 
-We forward the function to a safe `translate_addr_inner` function to limit the scope of `unsafe`. As we noted above, Rust treats the complete body of an unsafe fn like a large unsafe block. By calling into a private safe function, we make each `unsafe` operation explicit again.
+ما تابع را به یک تابع `translate_addr_inner` ایمن ارسال می‌کنیم تا دامنه `unsafe` را محدود کنیم. همان‌طور که در بالا اشاره کردیم، راست با کل بدنه یک fn ناامن مانند یک بلوک ناامن بزرگ رفتار می‌کند. با فراخوانی یک تابع امن خصوصی، هر عملیات «unsafe» را دوباره آشکار می‌کنیم.
 
-The private inner function contains the real implementation:
+تابع داخلی خصوصی شامل پیاده‌سازی واقعی است:
 
 ```rust
 // in src/memory.rs
@@ -552,15 +552,15 @@ fn translate_addr_inner(addr: VirtAddr, physical_memory_offset: VirtAddr)
 }
 ```
 
-Instead of reusing our `active_level_4_table` function, we read the level 4 frame from the `CR3` register again. We do this because it simplifies this prototype implementation. Don't worry, we will create a better solution in a moment.
+به جای استفاده مجدد از تابع `active_level_4_table`، دوباره فریم سطح 4 را از ثبات `CR3` می‌خوانیم. این کار را انجام می‌دهیم زیرا پیاده‌سازی این نمونه اولیه را ساده می‌کند. نگران نباشید، بزودی یک راه حل بهتری ایجاد خواهیم کرد.
 
-The `VirtAddr` struct already provides methods to compute the indexes into the page tables of the four levels. We store these indexes in a small array because it allows us to traverse the page tables using a `for` loop. Outside of the loop, we remember the last visited `frame` to calculate the physical address later. The `frame` points to page table frames while iterating, and to the mapped frame after the last iteration, i.e. after following the level 1 entry.
+ساختمان «VirtAddr» متدهایی را برای محاسبه شاخص‌ها در جدول‌های صفحه چهار سطح ارائه می‌دهد. ما این شاخص‌ها را در یک آرایه کوچک ذخیره می‌کنیم زیرا به ما اجازه می‌دهد تا با استفاده از حلقه «for» از جداول صفحه را پیمایش کنیم. خارج از حلقه، آخرین «frame» بازدید شده را به خاطر می‌آوریم تا بعداً آدرس فیزیکی را محاسبه کنیم. «frame» در حین پیمایش به فریم‌های جدول صفحه و بعد از آخرین پیمایش، یعنی پس از دنبال کردن ورودی سطح 1، به قاب نگاشت شده اشاره می‌کند.
 
-Inside the loop, we again use the `physical_memory_offset` to convert the frame into a page table reference. We then read the entry of the current page table and use the [`PageTableEntry::frame`] function to retrieve the mapped frame. If the entry is not mapped to a frame we return `None`. If the entry maps a huge 2MiB or 1GiB page we panic for now.
+در داخل حلقه، ما دوباره از «physical_memory_offset» برای تبدیل فریم به مرجع جدول صفحه استفاده می‌کنیم. سپس ورودی جدول صفحه فعلی را می‌خوانیم و از تابع [`PageTableEntry::frame`] برای بازیابی فریم نگاشت شده استفاده می‌کنیم. اگر ورودی به یک فریم نگاشت نشده باشد، `None` را برمی‌گردانیم. اگر ورودی یک صفحه عظیم 2MiB یا 1GiB را نگاشت کند، فعلاً پنیک می‌کنیم.
 
 [`PageTableEntry::frame`]: https://docs.rs/x86_64/0.14.2/x86_64/structures/paging/page_table/struct.PageTableEntry.html#method.frame
 
-Let's test our translation function by translating some addresses:
+بیایید تابع ترجمه خود را با ترجمه چند آدرس آزمایش کنیم:
 
 ```rust
 // in src/main.rs
@@ -594,15 +594,15 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
 }
 ```
 
-When we run it, we see the following output:
+وقتی آن را اجرا می‌کنیم، خروجی زیر را می‌بینیم:
 
 ![0xb8000 -> 0xb8000, 0x201008 -> 0x401008, 0x10000201a10 -> 0x279a10, "panicked at 'huge pages not supported'](qemu-translate-addr.png)
 
-As expected, the identity-mapped address `0xb8000` translates to the same physical address. The code page and the stack page translate to some arbitrary physical addresses, which depend on how the bootloader created the initial mapping for our kernel. It's worth noting that the last 12 bits always stay the same after translation, which makes sense because these bits are the [_page offset_] and not part of the translation.
+همان‌طور که انتظار می‌رود، آدرس نگاشت هویتی «0xb8000» به همان آدرس فیزیکی ترجمه می‌شود. صفحه کد و صفحه پشته به برخی آدرس‌های فیزیکی دلخواه ترجمه می‌شوند، که بستگی به نحوه ایجاد نگاشت اولیه توسط بوت‌لودر برای هسته ما دارد. شایان ذکر است که 12 بیت آخر همیشه پس از ترجمه ثابت می‌مانند، که منطقی است زیرا این بیت‌ها [_page offset_] هستند و بخشی از ترجمه نمی‌باشند.
 
 [_page offset_]: @/edition-2/posts/08-paging-introduction/index.md#paging-on-x86-64
 
-Since each physical address can be accessed by adding the `physical_memory_offset`, the translation of the `physical_memory_offset` address itself should point to physical address `0`. However, the translation fails because the mapping uses huge pages for efficiency, which is not supported in our implementation yet.
+از آن‌جایی که با افزودن «offset_physical_memory_offset» می‌توان به هر آدرس فیزیکی دسترسی داشت، ترجمه آدرس «physical_memory_offset» باید به آدرس فیزیکی «0» اشاره کند. با این حال، ترجمه با شکست مواجه می‌شود زیرا نقشه از صفحات بزرگ برای کارایی استفاده می‌کند، که هنوز در پیاده‌سازی ما پشتیبانی نمی‌شود.
 
 ### Using `OffsetPageTable`
 
