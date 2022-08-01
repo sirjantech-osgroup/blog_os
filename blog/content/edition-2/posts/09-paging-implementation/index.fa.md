@@ -604,14 +604,14 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
 
 از آن‌جایی که با افزودن «offset_physical_memory_offset» می‌توان به هر آدرس فیزیکی دسترسی داشت، ترجمه آدرس «physical_memory_offset» باید به آدرس فیزیکی «0» اشاره کند. با این حال، ترجمه با شکست مواجه می‌شود زیرا نقشه از صفحات بزرگ برای کارایی استفاده می‌کند، که هنوز در پیاده‌سازی ما پشتیبانی نمی‌شود.
 
-### Using `OffsetPageTable`
+### استفاده از `OffsetPageTable`
 
-Translating virtual to physical addresses is a common task in an OS kernel, therefore the `x86_64` crate provides an abstraction for it. The implementation already supports huge pages and several other page table functions apart from `translate_addr`, so we will use it in the following instead of adding huge page support to our own implementation.
+ترجمه آدرس‌های مجازی به فیزیکی یک کار رایج در هسته سیستم‌عامل است، بنابراین جعبه «x86_64» یک انتزاع برای آن فراهم می‌کند. این پیاده‌سازی در حال حاضر از صفحات بزرگ و چندین توابع دیگر جدول صفحه به غیر از «translate_addr» پشتیبانی می‌کند، بنابراین به‌جای افزودن پشتیبانی صفحه بزرگ به پیاده‌سازی خود، از آن در ادامه استفاده خواهیم کرد.
 
-The base of the abstraction are two traits that define various page table mapping functions:
+پایه این انتزاع دو صفت هستند که توابع مختلف نقشه جدول صفحه را تعریف می‌کنند:
 
-- The [`Mapper`] trait is generic over the page size and provides functions that operate on pages. Examples are [`translate_page`], which translates a given page to a frame of the same size, and [`map_to`], which creates a new mapping in the page table.
-- The [`Translate`] trait provides functions that work with multiple page sizes such as [`translate_addr`] or the general [`translate`].
+- صفت ['Mapper'] در اندازه صفحه عمومی است و توابعی را ارائه می‌کند که کارهایی را روی صفحات انجام می‌دهند. مثال‌ها عبارتند از [`translate_page`]، که یک صفحه معین را به فریمی با همان اندازه ترجمه می‌کند، و [`map_to`]، که نگاشت جدیدی در جدول صفحه ایجاد می‌کند.
+- صفت [`Translate`] توابعی را ارائه می‌دهد که با اندازه‌های مختلف از صفحه کار می‌کنند، برای مثال [`translate_addr`] یا [`translate`] عمومی .
 
 [`Mapper`]: https://docs.rs/x86_64/0.14.2/x86_64/structures/paging/mapper/trait.Mapper.html
 [`translate_page`]: https://docs.rs/x86_64/0.14.2/x86_64/structures/paging/mapper/trait.Mapper.html#tymethod.translate_page
@@ -620,13 +620,13 @@ The base of the abstraction are two traits that define various page table mappin
 [`translate_addr`]: https://docs.rs/x86_64/0.14.2/x86_64/structures/paging/mapper/trait.Translate.html#method.translate_addr
 [`translate`]: https://docs.rs/x86_64/0.14.2/x86_64/structures/paging/mapper/trait.Translate.html#tymethod.translate
 
-The traits only define the interface, they don't provide any implementation. The `x86_64` crate currently provides three types that implement the traits with different requirements. The [`OffsetPageTable`] type assumes that the complete physical memory is mapped to the virtual address space at some offset. The [`MappedPageTable`] is a bit more flexible: It only requires that each page table frame is mapped to the virtual address space at a calculable address. Finally, the [`RecursivePageTable`] type can be used to access page table frames through [recursive page tables](#recursive-page-tables).
+صفت‌ها فقط رابط (interface) را تعریف می‌کنند، آن‌ها هیچ پیاده‌سازی را ارائه نمی‌دهند. جعبه `x86_64` در حال حاضر سه نوع را ارائه می‌دهد که صفات را با الزامات مختلف اجرا می‌کند. نوع ['OffsetPageTable'] فرض می‌کند که حافظه فیزیکی به صورت کامل با مقداری افست به فضای آدرس مجازی نگاشت شده است. ['MappedPageTable'] کمی انعطاف پذیرتر است: فقط نیاز دارد که هر قاب جدول صفحه به فضای آدرس مجازی در یک آدرس قابل محاسبه نگاشت شود. در نهایت، از نوع ['RecursivePageTable'] می‌توان برای دسترسی به فریم‌های جدول صفحه از طریق [جدول صفحه بازگشتی](#recursive-page-tables) استفاده کرد.
 
 [`OffsetPageTable`]: https://docs.rs/x86_64/0.14.2/x86_64/structures/paging/mapper/struct.OffsetPageTable.html
 [`MappedPageTable`]: https://docs.rs/x86_64/0.14.2/x86_64/structures/paging/mapper/struct.MappedPageTable.html
-[`RecursivePageTable`]: https://docs.rs/x86_64/0.14.2/x86_64/structures/paging/mapper/struct.RecursivePageTable.html
+[`جدول صفحه بازگشتی`]: https://docs.rs/x86_64/0.14.2/x86_64/structures/paging/mapper/struct.RecursivePageTable.html
 
-In our case, the bootloader maps the complete physical memory at a virtual address specified by the `physical_memory_offset` variable, so we can use the `OffsetPageTable` type. To initialize it, we create a new `init` function in our `memory` module:
+در مورد ما، بوت‌لودر حافظه فیزیکی را به صورت کامل در یک آدرس مجازی مشخص شده توسط متغیر `physical_memory_offset` نگاشت می‌کند، بنابراین می‌توانیم از نوع `OffsetPageTable` استفاده کنیم. برای مقداردهی اولیه آن، یک تابع «init» جدید در ماژول «memory» ایجاد می‌کنیم:
 
 ```rust
 use x86_64::structures::paging::OffsetPageTable;
@@ -648,13 +648,13 @@ unsafe fn active_level_4_table(physical_memory_offset: VirtAddr)
 {…}
 ```
 
-The function takes the `physical_memory_offset` as an argument and returns a new `OffsetPageTable` instance with a `'static` lifetime. This means that the instance stays valid for the complete runtime of our kernel. In the function body, we first call the `active_level_4_table` function to retrieve a mutable reference to the level 4 page table. We then invoke the [`OffsetPageTable::new`] function with this reference. As the second parameter, the `new` function expects the virtual address at which the mapping of the physical memory starts, which is given in the `physical_memory_offset` variable.
+این تابع «physical_memory_offset» را به عنوان آرگومان می‌گیرد و یک نمونه «OffsetPageTable» جدید را با طول عمر «'static» برمی‌گرداند. یعنی نمونه برای کل زمان اجرای هسته ما معتبر می‌ماند. در بدنه تابع، ابتدا تابع 'active_level_4_table' را فراخوانی می‌کنیم تا یک مرجع قابل تغییر به جدول صفحه سطح 4 بازیابی شود. سپس تابع ['OffsetPageTable::new'] را با این مرجع فراخوانی می‌کنیم. به عنوان پارامتر دوم، تابع `new` توقع یک آدرس مجازی را دارد که در آن نگاشت حافظه فیزیکی آغاز می‌شود، این آدرس مجازی در متغیر `physical_memory_offset` داده شده است.
 
 [`OffsetPageTable::new`]: https://docs.rs/x86_64/0.14.2/x86_64/structures/paging/mapper/struct.OffsetPageTable.html#method.new
 
-The `active_level_4_table` function should be only called from the `init` function from now on because it can easily lead to aliased mutable references when called multiple times, which can cause undefined behavior. For this reason, we make the function private by removing the `pub` specifier.
+تابع 'active_level_4_table' از این پس باید فقط از تابع 'init' فراخوانی شود زیرا در صورتی که چندین بار فراخوانی شود به راحتی می‌تواند به مراجع تغییرپذیر مستعار (aliased mutable references) منجر شود که می‌تواند باعث رفتار نامشخص شود. به همین دلیل، با حذف مشخص کننده «pub» تابع را خصوصی می‌کنیم.
 
-We now can use the `Translate::translate_addr` method instead of our own `memory::translate_addr` function. We only need to change a few lines in our `kernel_main`:
+اکنون می‌توانیم به جای تابع «memory::translate_addr» از روش «Translate::translate_addr» استفاده کنیم. ما فقط باید چند خط را در «kernel_main» تغییر دهیم:
 
 ```rust
 // in src/main.rs
@@ -683,32 +683,32 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
 }
 ```
 
-We need to import the `Translate` trait in order to use the [`translate_addr`] method it provides.
+برای استفاده از روش [`translate_addr`]، باید صفت `Translate` که این متد را ارائه می‌کند، به کد خود وارد کنیم.
 
-When we run it now, we see the same translation results as before, with the difference that the huge page translation now also works:
+وقتی اکنون آن را اجرا می‌کنیم، همان نتایج ترجمه قبلی را می‌بینیم، با این تفاوت که حالا ترجمه صفحه عظیم نیز کار می‌کند:
 
 ![0xb8000 -> 0xb8000, 0x201008 -> 0x401008, 0x10000201a10 -> 0x279a10, 0x18000000000 -> 0x0](qemu-mapper-translate-addr.png)
 
-As expected, the translations of `0xb8000` and the code and stack addresses stay the same as with our own translation function. Additionally, we now see that the virtual address `physical_memory_offset` is mapped to the physical address `0x0`.
+همان‌طور که انتظار می‌رفت، ترجمه‌های «0xb8000» و آدرس‌های کد و پشته مانند تابع ترجمه خودمان باقی می‌مانند. علاوه بر این، اکنون می‌بینیم که آدرس مجازی «physical_memory_offset» به آدرس فیزیکی «0x0» نگاشت شده است.
 
-By using the translation function of the `MappedPageTable` type we can spare ourselves the work of implementing huge page support. We also have access to other page functions such as `map_to`, which we will use in the next section.
+با استفاده از تابع ترجمه از نوع «MappedPageTable» می‌توانیم از زحمت پیاده‌سازی پشتیبانی صفحه بزرگ صرف نظر کنیم. همچنین به سایر توابع صفحه مانند 'map_to' دسترسی داریم که در بخش بعدی از آن‌ها استفاده خواهیم کرد.
 
-At this point we no longer need our `memory::translate_addr` and `memory::translate_addr_inner` functions, so we can delete them.
+در این مرحله ما دیگر نیازی به توابع `memory::translate_addr` و `memory::translate_addr_inner` نداریم، بنابراین می‌توانیم آن‌ها را حذف کنیم.
 
-### Creating a new Mapping
+### ایجاد کردن یک نگاشت جدید
 
-Until now we only looked at the page tables without modifying anything. Let's change that by creating a new mapping for a previously unmapped page.
+تا به حال ما فقط به جداول صفحه نگاه می‌کردیم و چیزی را تغییر نمی‌دادیم. بیایید تغییر رویه داده و یک نقشه جدید برای صفحه‌ای که از قبل نقشه نشده، ایجاد کنیم.
 
-We will use the [`map_to`] function of the [`Mapper`] trait for our implementation, so let's take a look at that function first. The documentation tells us that it takes four arguments: the page that we want to map, the frame that the page should be mapped to, a set of flags for the page table entry, and a `frame_allocator`. The frame allocator is needed because mapping the given page might require creating additional page tables, which need unused frames as backing storage.
+ما از تابع ['map_to'] صفت ['Mapper'] برای پیاده‌سازی خود استفاده خواهیم کرد، بنابراین اجازه دهید ابتدا به آن تابع نگاهی بیندازیم. مستندات به ما می‌گویند که چهار آرگومان نیاز دارد: صفحه‌ای که می‌خواهیم نگاشت کنیم، فریمی که صفحه باید به آن نگاشت شود، مجموعه‌ای از پرچم‌ها برای ورودی جدول صفحه، و یک «frame_allocator». تخصیص‌دهنده فریم را نیاز داریم زیرا نگاشت صفحه داده شده ممکن است نیاز به ایجاد جداول صفحه اضافی داشته باشد که به فریم‌های استفاده نشده به عنوان حافظه پشتیبان نیاز دارند.
 
 [`map_to`]: https://docs.rs/x86_64/0.14.2/x86_64/structures/paging/trait.Mapper.html#tymethod.map_to
 [`Mapper`]: https://docs.rs/x86_64/0.14.2/x86_64/structures/paging/trait.Mapper.html
 
-#### A `create_example_mapping` Function
+#### یک تابع `create_example_mapping`
 
-The first step of our implementation is to create a new `create_example_mapping` function that maps a given virtual page to `0xb8000`, the physical frame of the VGA text buffer. We choose that frame because it allows us to easily test if the mapping was created correctly: We just need to write to the newly mapped page and see whether we see the write appear on the screen.
+اولین مرحله از پیاده‌سازی ایجاد یک تابع «create_example_mapping» جدید است که یک صفحه مجازی داده شده را به «0xb8000»، همان قاب فیزیکی بافر متن VGA نگاشت می‌کند. ما آن فریم را انتخاب می‌کنیم زیرا به ما اجازه می‌دهد به راحتی تست کنیم که آیا نگاشت به درستی ایجاد شده است یا خیر: فقط باید در صفحه جدید نقشه شده بنویسیم و ببینیم که نوشته روی صفحه ظاهر می‌شود یا خیر.
 
-The `create_example_mapping` function looks like this:
+تابع «create_example_mapping» به شکل زیر است:
 
 ```rust
 // in src/memory.rs
@@ -737,20 +737,20 @@ pub fn create_example_mapping(
 }
 ```
 
-In addition to the `page` that should be mapped, the function expects a mutable reference to an `OffsetPageTable` instance and a `frame_allocator`. The `frame_allocator` parameter uses the [`impl Trait`][impl-trait-arg] syntax to be [generic] over all types that implement the [`FrameAllocator`] trait. The trait is generic over the [`PageSize`] trait to work with both standard 4KiB pages and huge 2MiB/1GiB pages. We only want to create a 4KiB mapping, so we set the generic parameter to `Size4KiB`.
+علاوه بر `page` که باید نگاشت شود، این تابع انتظار یک مرجع قابل تغییر به یک نمونه `OffsetPageTable` و یک `frame_allocator` را دارد. پارامتر «frame_allocator» از نحو [`impl Trait`][impl-trait-arg] استفاده می‌کند تا در همه انواعی که صفت [`FrameAllocator`] را پیاده‌سازی می‌کنند، [عمومی] (generic) باشد. این صفت نسبت به صفت ['Size'] عمومی است تا هم با صفحات استاندارد 4KiB و هم با صفحات عظیم 2MiB/1GiB کار کند. ما فقط می‌خواهیم یک نقشه 4KiB ایجاد کنیم، بنابراین پارامتر عمومی را روی `Size4KiB` تنظیم می کنیم.
 
 [impl-trait-arg]: https://doc.rust-lang.org/book/ch10-02-traits.html#traits-as-parameters
-[generic]: https://doc.rust-lang.org/book/ch10-00-generics.html
+[عمومی]: https://doc.rust-lang.org/book/ch10-00-generics.html
 [`FrameAllocator`]: https://docs.rs/x86_64/0.14.2/x86_64/structures/paging/trait.FrameAllocator.html
 [`PageSize`]: https://docs.rs/x86_64/0.14.2/x86_64/structures/paging/page/trait.PageSize.html
 
-The [`map_to`] method is unsafe because the caller must ensure that the frame is not already in use. The reason for this is that mapping the same frame twice could result in undefined behavior, for example when two different `&mut` references point to the same physical memory location. In our case, we reuse the VGA text buffer frame, which is already mapped, so we break the required condition. However, the `create_example_mapping` function is only a temporary testing function and will be removed after this post, so it is ok. To remind us of the unsafety, we put a `FIXME` comment on the line.
+روش ['map_to'] ناامن است زیرا فراخواننده باید اطمینان حاصل کند که فریم قبلاً استفاده نشده است. زیرا دوبار نگاشت یک فریم می‌تواند منجر به رفتار نامشخص شود، برای مثال زمانی که دو مرجع مختلف «&mut» به مکان حافظه فیزیکی یکسانی اشاره می‌کنند. در مورد ما، از فریم بافر متن VGA، که قبلاً نقشه شده است، مجدداً استفاده می‌کنیم، بنابراین شرط لازم را می‌شکنیم. با این حال، تابع `create_example_mapping` تنها یک تابع آزمایشی موقت است و پس از این پست حذف خواهد شد، بنابراین مشکلی ندارد. برای یادآوری ناامنی، یک کامنت «FIXME» اضافه می‌کنیم.
 
-In addition to the `page` and the `unused_frame`, the `map_to` method takes a set of flags for the mapping and a reference to the `frame_allocator`, which will be explained in a moment. For the flags, we set the `PRESENT` flag because it is required for all valid entries and the `WRITABLE` flag to make the mapped page writable. For a list of all possible flags, see the [_Page Table Format_] section of the previous post.
+علاوه بر «page» و «unused_frame»، روش «map_to» مجموعه‌ای از پرچم‌ها را برای نگاشت و ارجاع به «frame_allocator» می‌گیرد که بزودی توضیح داده خواهد شد. برای پرچم‌ها، ما پرچم «PRESENT» را تنظیم می‌کنیم، زیرا برای همه ورودی‌های معتبر می‌باشد و پرچم «WRITABLE» برای قابلیت نوشتن صفحه نقشه شده لازم است. برای فهرست همه پرچم‌های ممکن، بخش [_Page Table Format_] پست قبلی را ببینید.
 
 [_Page Table Format_]: @/edition-2/posts/08-paging-introduction/index.md#page-table-format
 
-The [`map_to`] function can fail, so it returns a [`Result`]. Since this is just some example code that does not need to be robust, we just use [`expect`] to panic when an error occurs. On success, the function returns a [`MapperFlush`] type that provides an easy way to flush the newly mapped page from the translation lookaside buffer (TLB) with its [`flush`] method. Like `Result`, the type uses the [`#[must_use]`][must_use] attribute to emit a warning when we accidentally forget to use it.
+تابع [`map_to`] ممکن است شکست بخورد، بنابراین یک [`Result`] را برمی‌گرداند. از آن‌جایی که این فقط چند نمونه کد است که نیازی به خوب و استاندارد بودن ندارد، ما فقط از ['expect'] استفاده می‌کنیم تا در هنگام بروز خطا پنیک کنیم. در صورت موفقیت، این تابع یک نوع ['MapperFlush'] را برمی‌گرداند که راه آسانی را برای پاک کردن صفحه جدید نقشه شده از TLB با روش ['flush'] خود ارائه می‌دهد. مانند «Result»، این نوع از صفت [`#[must_use]`][must_use] استفاده می‌کند تا زمانی که اشتباهاً استفاده از آن را فراموش می‌کنیم، هشداری صادر کند.
 
 [`Result`]: https://doc.rust-lang.org/core/result/enum.Result.html
 [`expect`]: https://doc.rust-lang.org/core/result/enum.Result.html#method.expect
@@ -758,11 +758,11 @@ The [`map_to`] function can fail, so it returns a [`Result`]. Since this is just
 [`flush`]: https://docs.rs/x86_64/0.14.2/x86_64/structures/paging/mapper/struct.MapperFlush.html#method.flush
 [must_use]: https://doc.rust-lang.org/std/result/#results-must-be-used
 
-#### A dummy `FrameAllocator`
+#### یک `FrameAllocator` ساختگی
 
-To be able to call `create_example_mapping` we need to create a type that implements the `FrameAllocator` trait first. As noted above, the trait is responsible for allocating frames for new page table if they are needed by `map_to`.
+برای اینکه بتوانیم «create_example_mapping» را فراخوانی کنیم، باید نوعی ایجاد کنیم که ابتدا صفت «FrameAllocator» را پیاده‌سازی کند. همان‌طور که در بالا ذکر شد، این صفت در صورتی که «map_to» نیاز داشته باشد، مسئول تخصیص فریم‌ها برای جدول صفحه جدید است.
 
-Let's start with the simple case and assume that we don't need to create new page tables. For this case, a frame allocator that always returns `None` suffices. We create such an `EmptyFrameAllocator` for testing our mapping function:
+بیایید با حالت ساده شروع کنیم و فرض کنیم که نیازی به ایجاد جداول صفحه جدید نداریم. برای این مورد، یک تخصیص‌دهنده فریم که همیشه «None» را برمی‌گرداند، کافی است. ما یک «EmptyFrameAllocator» را برای تست تابع نقشه خود ایجاد می‌کنیم:
 
 ```rust
 // in src/memory.rs
@@ -777,29 +777,29 @@ unsafe impl FrameAllocator<Size4KiB> for EmptyFrameAllocator {
 }
 ```
 
-Implementing the `FrameAllocator` is unsafe because the implementer must guarantee that the allocator yields only unused frames. Otherwise undefined behavior might occur, for example when two virtual pages are mapped to the same physical frame. Our `EmptyFrameAllocator` only returns `None`, so this isn't a problem in this case.
+پیاده‌سازی «FrameAllocator» ناامن است زیرا پیاده‌ساز باید تضمین کند که تخصیص‌دهنده فقط فریم‌های استفاده‌نشده را ارائه می‌دهد. در غیر این صورت ممکن است رفتار نامشخصی رخ دهد، برای مثال زمانی که دو صفحه مجازی در یک قاب فیزیکی نگاشت می‌شوند. «EmptyFrameAllocator» ما فقط «None» را برمی‌گرداند، بنابراین در این مورد مشکلی نیست.
 
-#### Choosing a Virtual Page
+#### انتخاب یک صفحه مجازی
 
-We now have a simple frame allocator that we can pass to our `create_example_mapping` function. However, the allocator always returns `None`, so this will only work if no additional page table frames are needed for creating the mapping. To understand when additional page table frames are needed and when not, let's consider an example:
+ما اکنون یک تخصیص‌دهنده فریم ساده داریم که می‌توانیم آن را به تابع `create_example_mapping` خود منتقل کنیم. با این حال، تخصیص‌دهنده همیشه «None» را برمی‌گرداند، بنابراین این کار تنها در صورتی جواب می‌دهد که برای ایجاد نقشه به فریم‌های جدول صفحه اضافی نیاز نباشد. برای درک این‌که چه زمانی به فریم‌های جدول صفحه اضافی نیاز است و چه زمانی نیاز نیست، بیایید مثالی را در نظر بگیریم:
 
 ![A virtual and a physical address space with a single mapped page and the page tables of all four levels](required-page-frames-example.svg)
 
-The graphic shows the virtual address space on the left, the physical address space on the right, and the page tables in between. The page tables are stored in physical memory frames, indicated by the dashed lines. The virtual address space contains a single mapped page at address `0x803fe00000`, marked in blue. To translate this page to its frame, the CPU walks the 4-level page table until it reaches the frame at address 36 KiB.
+تصویر بالا فضای آدرس مجازی را در سمت چپ، فضای آدرس فیزیکی در سمت راست و جداول صفحه را در بین آن‌ها نشان می‌دهد. جداول صفحه در فریم‌های حافظه فیزیکی ذخیره می‌شوند که با خط‌چین نشان داده می‌شوند. فضای آدرس مجازی حاوی یک صفحه نگاشت شده در آدرس «0x803fe00000» است که با رنگ آبی مشخص شده است. برای ترجمه این صفحه به فریمش، CPU جدول صفحه 4 سطحی را تا زمانی که به فریم آدرس 36 کیلوبایت برسد، می‌پیماید.
 
-Additionally, the graphic shows the physical frame of the VGA text buffer in red. Our goal is to map a previously unmapped virtual page to this frame using our `create_example_mapping` function. Since our `EmptyFrameAllocator` always returns `None`, we want to create the mapping so that no additional frames are needed from the allocator. This depends on the virtual page that we select for the mapping.
+علاوه بر این، تصویر بالا، قاب فیزیکی بافر متن VGA را به رنگ قرمز نشان می‌دهد. هدف ما این است که با استفاده از تابع `create_example_mapping` یک صفحه مجازی که قبلاً نقشه نشده بود را به این قاب نگاشت کنیم. از آن‌جایی که «EmptyFrameAllocator» ما همیشه «None» را برمی‌گرداند، می‌خواهیم نگاشت را طوری ایجاد کنیم که هیچ فریم اضافی از تخصیص‌دهنده مورد نیاز نباشد. این بستگی به صفحه مجازی‌ای دارد که برای نقشه انتخاب می‌کنیم.
 
-The graphic shows two candidate pages in the virtual address space, both marked in yellow. One page is at address `0x803fdfd000`, which is 3 pages before the mapped page (in blue). While the level 4 and level 3 page table indices are the same as for the blue page, the level 2 and level 1 indices are different (see the [previous post][page-table-indices]). The different index into the level 2 table means that a different level 1 table is used for this page. Since this level 1 table does not exist yet, we would need to create it if we chose that page for our example mapping, which would require an additional unused physical frame. In contrast, the second candidate page at address `0x803fe02000` does not have this problem because it uses the same level 1 page table than the blue page. Thus, all required page tables already exist.
+این تصویر دو صفحه کاندید را در فضای آدرس مجازی نشان می‌دهد که هر دو با رنگ زرد مشخص شده‌اند. یک صفحه در آدرس «0x803fdfd000» است که 3 صفحه قبل از صفحه نقشه شده (به رنگ آبی) است. در حالی که شاخص‌های جدول صفحه سطح 4 و سطح 3 مانند صفحه آبی هستند، شاخص‌های سطح 2 و سطح 1 متفاوت هستند (به [پست قبلی][page-table-indices] مراجعه کنید). شاخص متفاوت در جدول سطح 2 به این معنی است که جدول سطح 1 متفاوتی برای این صفحه استفاده می‌شود. از آن‌جایی که این جدول سطح 1 هنوز وجود ندارد، اگر آن صفحه را برای نگاشت مثال خود انتخاب کنیم، باید ابتدا آن را ایجاد کنیم، که به یک فریم فیزیکی استفاده نشده اضافی نیاز دارد. در مقابل، دومین صفحه نامزد در آدرس «0x803fe02000» این مشکل را ندارد زیرا از همان جدول صفحه سطح 1 نسبت به صفحه آبی استفاده می‌کند. بنابراین، تمام جداول صفحه مورد نیاز از قبل وجود دارد.
 
 [page-table-indices]: @/edition-2/posts/08-paging-introduction/index.md#paging-on-x86-64
 
-In summary, the difficulty of creating a new mapping depends on the virtual page that we want to map. In the easiest case, the level 1 page table for the page already exists and we just need to write a single entry. In the most difficult case, the page is in a memory region for that no level 3 exists yet so that we need to create new level 3, level 2 and level 1 page tables first.
+به طور خلاصه، دشواری ایجاد یک نقشه جدید به صفحه مجازی که می خواهیم نقشه کنیم بستگی دارد. در ساده‌ترین حالت، جدول صفحه سطح 1 برای صفحه از قبل وجود دارد و ما فقط باید یک ورودی بنویسیم. در سخت‌ترین حالت، صفحه در یک منطقه حافظه است که هنوز سطح 3 وجود ندارد، بنابراین ابتدا باید جداول صفحه سطح 3، سطح 2 و سطح 1 جدید ایجاد کنیم.
 
-For calling our `create_example_mapping` function with the `EmptyFrameAllocator`, we need to choose a page for that all page tables already exist. To find such a page, we can utilize the fact that the bootloader loads itself in the first megabyte of the virtual address space. This means that a valid level 1 table exists for all pages this region. Thus, we can choose any unused page in this memory region for our example mapping, such as the page at address `0`. Normally, this page should stay unused to guarantee that dereferencing a null pointer causes a page fault, so we know that the bootloader leaves it unmapped.
+برای فراخوانی تابع «create_example_mapping» با «EmptyFrameAllocator»، باید صفحه‌ای را انتخاب کنیم که همه جداول صفحه از قبل وجود داشته باشد. برای یافتن چنین صفحه‌ای، می‌توانیم از این واقعیت استفاده کنیم که بوت‌لودر، خود را در اولین مگابایت فضای آدرس مجازی بارگذاری می‌کند. یعنی یک جدول سطح 1 معتبر برای همه صفحات این منطقه وجود دارد. بنابراین، می‌توانیم هر صفحه بدون استفاده در این منطقه حافظه را برای نقشه مثال خود انتخاب کنیم، مانند صفحه موجود در آدرس «0». به طور معمول، این صفحه باید بدون استفاده بماند تا تضمین کند که از بین بردن ارجاع یک اشاره‌گر تهی باعث خطای صفحه می‌شود، بنابراین می‌دانیم که بوت‌لودر آن را بدون نقشه رها می‌کند.
 
-#### Creating the Mapping
+#### ایجاد کردن نگاشت
 
-We now have all the required parameters for calling our `create_example_mapping` function, so let's modify our `kernel_main` function to map the page at virtual address `0`. Since we map the page to the frame of the VGA text buffer, we should be able to write to the screen through it afterwards. The implementation looks like this:
+ما اکنون تمام پارامترهای لازم برای فراخوانی تابع `create_example_mapping` خود را داریم، بنابراین بیایید تابع `kernel_main` را تغییر دهیم تا صفحه را در آدرس مجازی `0` ترسیم کنیم. از آن‌جایی که صفحه را به قاب بافر متن VGA نگاشت می‌کنیم، باید بتوانیم بعد از آن روی صفحه بنویسیم. پیاده‌سازی به شکل زیر است:
 
 ```rust
 // in src/main.rs
@@ -826,20 +826,20 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
 }
 ```
 
-We first create the mapping for the page at address `0` by calling our `create_example_mapping` function with a mutable reference to the `mapper` and the `frame_allocator` instances. This maps the page to the VGA text buffer frame, so we should see any write to it on the screen.
+ابتدا با فراخوانی تابع `create_example_mapping` با یک مرجع قابل تغییر به نمونه‌های `mapper` و `frame_allocator` نگاشت صفحه را در آدرس `0` ایجاد می‌کنیم. این صفحه را به قاب بافر متنی VGA نگاشت می‌کند، بنابراین باید هر گونه نوشتن روی آن را روی صفحه ببینیم.
 
-Then we convert the page to a raw pointer and write a value to offset `400`. We don't write to the start of the page because the top line of the VGA buffer is directly shifted off the screen by the next `println`. We write the value `0x_f021_f077_f065_f04e`, which represents the string _"New!"_ on white background. As we learned [in the _“VGA Text Mode”_ post], writes to the VGA buffer should be volatile, so we use the [`write_volatile`] method.
+سپس صفحه را به یک اشاره‌گر خام تبدیل می‌کنیم و مقداری را در آفست `400` می‌نویسیم. در ابتدای صفحه نمی‌نویسیم زیرا خط بالای بافر VGA مستقیماً توسط `println` بعدی از صفحه خارج می‌شود. مقدار `0x_f021_f077_f065_f04e` را می‌نویسیم که نشان‌دهنده رشته _"New!"_ در پس‌زمینه سفید است. همان‌طور که [در پست _"حالت متن VGA"_] آموختیم، نوشته‌های بافر VGA باید فرار (volatile) باشد، بنابراین از روش [`write_volatile`] استفاده می‌کنیم.
 
-[in the _“VGA Text Mode”_ post]: @/edition-2/posts/03-vga-text-buffer/index.md#volatile
+[در پست _"حالت متن VGA"_]: @/edition-2/posts/03-vga-text-buffer/index.md#volatile
 [`write_volatile`]: https://doc.rust-lang.org/std/primitive.pointer.html#method.write_volatile
 
-When we run it in QEMU, we see the following output:
+وقتی آن را در QEMU اجرا می‌کنیم، خروجی زیر را می‌بینیم:
 
 ![QEMU printing "It did not crash!" with four completely white cells in the middle of the screen](qemu-new-mapping.png)
 
-The _"New!"_ on the screen is by our write to page `0`, which means that we successfully created a new mapping in the page tables.
+رشته _"New!"_ که روی صفحه نشان داده شده است توسط نوشتن ما در صفحه `0` وجود دارد، به این معنی که ما با موفقیت یک نقشه جدید در جداول صفحه ایجاد کردیم.
 
-Creating that mapping only worked because the level 1 table responsible for the page at address `0` already exists. When we try to map a page for that no level 1 table exists yet, the `map_to` function fails because it tries to allocate frames from the `EmptyFrameAllocator` for creating new page tables. We can see that happen when we try to map page `0xdeadbeaf000` instead of `0`:
+ایجاد این نگاشت فقط به این دلیل کار می‌کند که جدول سطح 1 که مسئول صفحه در آدرس «0» می‌باشد، از قبل وجود دارد. وقتی می‌خواهیم صفحه‌ای را برای آن جدول سطح 1 ترسیم کنیم، تابع «map_to» با شکست مواجه می‌شود زیرا سعی می‌کند فریم‌هایی را از «EmptyFrameAllocator» برای ایجاد جداول صفحه جدید اختصاص دهد. وقتی می‌خواهیم صفحه «0xdeadbeaf000» را به جای «0» ترسیم کنیم، می‌توانیم این اتفاق را ببینیم:
 
 ```rust
 // in src/main.rs
@@ -851,17 +851,17 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
 }
 ```
 
-When we run it, a panic with the following error message occurs:
+وقتی آن را اجرا می‌کنیم، یک پنیک با پیام خطای زیر رخ می‌دهد:
 
 ```
 panicked at 'map_to failed: FrameAllocationFailed', /…/result.rs:999:5
 ```
 
-To map pages that don't have a level 1 page table yet we need to create a proper `FrameAllocator`. But how do we know which frames are unused and how much physical memory is available?
+برای نگاشت صفحاتی که هنوز جدول صفحه سطح 1 ندارند، باید یک «FrameAllocator» مناسب ایجاد کنیم. اما چگونه بفهمیم کدام فریم‌ها استفاده نشده‌اند و چه مقدار حافظه فیزیکی در دسترس است؟
 
-### Allocating Frames
+### تخصیص دادن فریم‌ها
 
-In order to create new page tables, we need to create a proper frame allocator. For that we use the `memory_map` that is passed by the bootloader as part of the `BootInfo` struct:
+برای ایجاد جداول صفحه جدید، باید یک تخصیص‌دهنده فریم مناسب ایجاد کنیم. برای این کار از «memory_map» استفاده می‌کنیم که توسط بوت‌لودر به عنوان بخشی از ساختمان «BootInfo» ارسال می‌شود:
 
 ```rust
 // in src/memory.rs
@@ -889,15 +889,15 @@ impl BootInfoFrameAllocator {
 }
 ```
 
-The struct has two fields: A `'static` reference to the memory map passed by the bootloader and a `next` field that keeps track of number of the next frame that the allocator should return.
+ساختمان دارای دو فیلد است: یک ارجاع `'static` به نقشه حافظه عبور داده شده توسط بوت‌لودر و یک فیلد `next` که تعداد فریم بعدی که تخصیص‌دهنده باید برگرداند را پیگیری کند.
 
-As we explained in the [_Boot Information_](#boot-information) section, the memory map is provided by the BIOS/UEFI firmware. It can only be queried very early in the boot process, so the bootloader already calls the respective functions for us. The memory map consists of a list of [`MemoryRegion`] structs, which contain the start address, the length, and the type (e.g. unused, reserved, etc.) of each memory region.
+همان‌طور که در بخش [_اطلاعات بوت_](#boot-information) توضیح دادیم، نقشه حافظه توسط ثابت‌افزار BIOS/UEFI ارائه شده است. فقط در مراحل اولیه بوت می‌توان آن را پرس‌وجو کرد، بنابراین بوت‌لودر از قبل توابع مربوطه را برای ما فراخوانی می‌کند. نقشه حافظه شامل فهرستی از ساختمان‌های ['MemoryRegion'] است که شامل آدرس شروع، طول و نوع (به عنوان مثال استفاده نشده، رزرو شده و غیره) هر ناحیه حافظه است.
 
-The `init` function initializes a `BootInfoFrameAllocator` with a given memory map. The `next` field is initialized with `0` and will be increased for every frame allocation to avoid returning the same frame twice. Since we don't know if the usable frames of the memory map were already used somewhere else, our `init` function must be `unsafe` to require additional guarantees from the caller.
+تابع 'init' یک 'BootInfoFrameAllocator' را با یک نقشه حافظه داده شده مقداردهی اولیه می‌کند. فیلد «next» با «0» مقداردهی اولیه می‌شود و برای هر تخصیص فریم افزایش می‌یابد تا از دوبار بازگشت همان فریم جلوگیری شود. از آن‌جایی که نمی‌دانیم آیا فریم‌های قابل استفاده نقشه حافظه قبلاً در جای دیگری استفاده شده‌اند، تابع «init» ما باید «unsafe» باشد تا به تضمین‌های اضافی از فراخواننده نیاز داشته باشد.
 
-#### A `usable_frames` Method
+#### یک متد `usable_frames`
 
-Before we implement the `FrameAllocator` trait, we add an auxiliary method that converts the memory map into an iterator of usable frames:
+قبل از اینکه صفت «FrameAllocator» را پیاده‌سازی کنیم، یک روش کمکی اضافه می‌کنیم که نقشه حافظه را به یک iterator از فریم‌های قابل استفاده تبدیل می‌کند:
 
 ```rust
 // in src/memory.rs
@@ -922,28 +922,29 @@ impl BootInfoFrameAllocator {
 }
 ```
 
-This function uses iterator combinator methods to transform the initial `MemoryMap` into an iterator of usable physical frames:
+این تابع از روش‌های ترکیب‌کننده iterator برای تبدیل «MemoryMap» اولیه به یک iterator از فریم‌های فیزیکی قابل استفاده، استفاده می‌کند:
 
-- First, we call the `iter` method to convert the memory map to an iterator of [`MemoryRegion`]s.
-- Then we use the [`filter`] method to skip any reserved or otherwise unavailable regions. The bootloader updates the memory map for all the mappings it creates, so frames that are used by our kernel (code, data or stack) or to store the boot information are already marked as `InUse` or similar. Thus we can be sure that `Usable` frames are not used somewhere else.
-- Afterwards, we use the [`map`] combinator and Rust's [range syntax] to transform our iterator of memory regions to an iterator of address ranges.
-- Next, we use [`flat_map`] to transform the address ranges into an iterator of frame start addresses, choosing every 4096th address using [`step_by`]. Since 4096 bytes (= 4 KiB) is the page size, we get the start address of each frame. The bootloader page aligns all usable memory areas so that we don't need any alignment or rounding code here. By using [`flat_map`] instead of `map`, we get an `Iterator<Item = u64>` instead of an `Iterator<Item = Iterator<Item = u64>>`.
-- Finally, we convert the start addresses to `PhysFrame` types to construct the an `Iterator<Item = PhysFrame>`.
+- ابتدا متد «iter» را فراخوانی می‌کنیم تا نقشه حافظه را به یک iterator از [«MemoryRegion»]ها تبدیل کنیم.
+- سپس از روش ['filter'] برای رد شدن (skip) از هر منطقه رزرو شده یا غیرقابل دسترس استفاده می‌کنیم. بوت‌لودر نقشه حافظه را برای تمام نگاشت‌هایی که ایجاد می‌کند بروز می‌کند، بنابراین فریم‌هایی که توسط هسته ما (کد، داده یا پشته) یا برای ذخیره اطلاعات بوت استفاده می‌شوند، قبلاً به عنوان `InUse` یا چیزی مشابه آن علامت‌گذاری شده‌اند. بنابراین می‌توانیم مطمئن باشیم که فریم‌های «Usable» در جای دیگری استفاده نمی‌شوند.
+- پس از آن، از ترکیب‌کننده ['map'] و [نحو range] راست را استفاده می‌کنیم تا iterator مناطق حافظه خود را به یک iterator محدوده آدرس تبدیل کنیم.
+- در مرحله بعد، از [`flat_map`] برای تبدیل محدوده آدرس به یک iterator آدرس‌های شروع فریم استفاده می‌کنیم و هر 4096مین آدرس را با استفاده از [`step_by`] انتخاب می‌کنیم. از آن‌جایی که 4096 بایت (= 4 کیلوبایت) اندازه صفحه است، آدرس شروع هر فریم را دریافت می‌کنیم. صفحه بوت‌لودر تمام ناحیه‌های حافظه قابل استفاده را تراز می‌کند تا در اینجا به هیچ تراز یا کد گرد کردنی (rounding code) نیاز نداشته باشیم. با استفاده از [`flat_map`] به جای «map»، یک `Iterator<Item = u64>` به جای `Iterator<Item = Iterator<Item = u64>>` دریافت می‌کنیم.
+- در نهایت، آدرس‌های شروع را به انواع `PhysFrame` تبدیل می‌کنیم تا یک `Iterator<Item = PhysFrame>` بسازیم.
 
 [`MemoryRegion`]: https://docs.rs/bootloader/0.6.4/bootloader/bootinfo/struct.MemoryRegion.html
 [`filter`]: https://doc.rust-lang.org/core/iter/trait.Iterator.html#method.filter
 [`map`]: https://doc.rust-lang.org/core/iter/trait.Iterator.html#method.map
-[range syntax]: https://doc.rust-lang.org/core/ops/struct.Range.html
+[نحو range]: https://doc.rust-lang.org/core/ops/struct.Range.html
 [`step_by`]: https://doc.rust-lang.org/core/iter/trait.Iterator.html#method.step_by
 [`flat_map`]: https://doc.rust-lang.org/core/iter/trait.Iterator.html#method.flat_map
 
-The return type of the function uses the [`impl Trait`] feature. This way, we can specify that we return some type that implements the [`Iterator`] trait with item type `PhysFrame`, but don't need to name the concrete return type. This is important here because we _can't_ name the concrete type since it depends on unnamable closure types.
+نوع برگشتی تابع از ویژگی [`impl Trait`] استفاده می‌کند. به این ترتیب، می‌توانیم تعیین کنیم که نوع خاصی را که صفت ['Iterator'] را با نوع آیتم `PhysFrame` پیاده‌سازی می‌کند، برگردانیم، اما نیازی به نام‌گذاری نوع بازگشتی مشخص نیست. این در اینجا مهم است زیرا ما _نمی‌توانیم_ نوع دقیق (concrete type) را نام ببریم چون به انواع closure غیرقابل نام‌گذاری (unnamable) بستگی دارد.
 
 [`impl Trait`]: https://doc.rust-lang.org/book/ch10-02-traits.html#returning-types-that-implement-traits
 [`Iterator`]: https://doc.rust-lang.org/core/iter/trait.Iterator.html
 
 #### Implementing the `FrameAllocator` Trait
 
+اکنون می‌توانیم ویژگی «FrameAllocator» را پیاده‌سازی کنیم:
 Now we can implement the `FrameAllocator` trait:
 
 ```rust
@@ -958,10 +959,12 @@ unsafe impl FrameAllocator<Size4KiB> for BootInfoFrameAllocator {
 }
 ```
 
+ابتدا از روش «قابی_مصرف» استفاده می کنیم تا یک تکرار کننده از فریم های قابل استفاده از نقشه حافظه به دست آوریم. سپس، از تابع [`Iterator::nth`] استفاده می کنیم تا فریم را با نمایه «self.next» بدست آوریم (در نتیجه از فریم های «(self.next - 1)» پرش می کنیم. قبل از برگرداندن آن فریم، `self.next` را یک عدد افزایش می دهیم تا در تماس بعدی فریم زیر را برگردانیم.
 We first use the `usable_frames` method to get an iterator of usable frames from the memory map. Then, we use the [`Iterator::nth`] function to get the frame with index `self.next` (thereby skipping `(self.next - 1)` frames). Before returning that frame, we increase `self.next` by one so that we return the following frame on the next call.
 
 [`Iterator::nth`]: https://doc.rust-lang.org/core/iter/trait.Iterator.html#method.nth
 
+این پیاده‌سازی کاملاً بهینه نیست زیرا تخصیص‌دهنده «قابی_استفاده» را در هر تخصیص دوباره ایجاد می‌کند. بهتر است به‌جای آن، تکرارکننده را به‌عنوان یک فیلد ساختاری ذخیره کنید. سپس ما به روش «nth» نیازی نداریم و فقط می‌توانیم [«next»] را در هر تخصیص فراخوانی کنیم. مشکل این رویکرد این است که در حال حاضر امکان ذخیره یک نوع `impl Trait` در یک فیلد ساختار وجود ندارد. ممکن است روزی زمانی که [_named existential types_] به طور کامل اجرا شوند، کار کند.
 This implementation is not quite optimal since it recreates the `usable_frame` allocator on every allocation. It would be better to directly store the iterator as a struct field instead. Then we wouldn't need the `nth` method and could just call [`next`] on every allocation. The problem with this approach is that it's not possible to store an `impl Trait` type in a struct field currently. It might work someday when [_named existential types_] are fully implemented.
 
 [`next`]: https://doc.rust-lang.org/core/iter/trait.Iterator.html#tymethod.next
@@ -969,6 +972,7 @@ This implementation is not quite optimal since it recreates the `usable_frame` a
 
 #### Using the `BootInfoFrameAllocator`
 
+اکنون می‌توانیم تابع «kernel_main» خود را تغییر دهیم تا یک نمونه «BootInfoFrameAllocator» را به جای «EmptyFrameAllocator» ارسال کنیم:
 We can now modify our `kernel_main` function to pass a `BootInfoFrameAllocator` instance instead of an `EmptyFrameAllocator`:
 
 ```rust
@@ -984,27 +988,38 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
 }
 ```
 
+با اختصاص‌دهنده فریم اطلاعات راه‌اندازی، نقشه‌برداری با موفقیت انجام می‌شود و دوباره تصویر سیاه به سفید _"New!"_ را روی صفحه می‌بینیم. در پشت صحنه، متد 'map_to' جداول صفحات گم شده را به روش زیر ایجاد می کند:
 With the boot info frame allocator, the mapping succeeds and we see the black-on-white _"New!"_ on the screen again. Behind the scenes, the `map_to` method creates the missing page tables in the following way:
 
+- یک فریم استفاده نشده از «تخصیص دهنده_فریم» تصویب شده اختصاص دهید.
 - Allocate an unused frame from the passed `frame_allocator`.
+- برای ایجاد یک جدول صفحه جدید و خالی، کادر را صفر کنید.
 - Zero the frame to create a new, empty page table.
+- ورودی جدول سطح بالاتر را به آن فریم نگاشت کنید.
 - Map the entry of the higher level table to that frame.
+- با سطح جدول بعدی ادامه دهید.
 - Continue with the next table level.
 
+در حالی که تابع «create_example_mapping» ما فقط چند نمونه کد است، اکنون می‌توانیم نگاشت‌های جدیدی را برای صفحات دلخواه ایجاد کنیم. این برای تخصیص حافظه یا پیاده سازی multithreading در پست های آینده ضروری خواهد بود.
 While our `create_example_mapping` function is just some example code, we are now able to create new mappings for arbitrary pages. This will be essential for allocating memory or implementing multithreading in future posts.
 
+در این مرحله، باید تابع «create_example_mapping» را دوباره حذف کنیم تا از فراخوانی تصادفی رفتار تعریف نشده، همانطور که در [بالا] توضیح داده شد، جلوگیری کنیم (#a-create-example-mapping-function).
 At this point, we should delete the `create_example_mapping` function again to avoid accidentally invoking undefined behavior, as explained [above](#a-create-example-mapping-function).
 
 ## Summary
 
+در این پست با تکنیک‌های مختلف دسترسی به فریم‌های فیزیکی جداول صفحه از جمله نگاشت هویت، نگاشت حافظه فیزیکی کامل، نگاشت موقت و جداول صفحه بازگشتی آشنا شدیم. ما تصمیم گرفتیم که حافظه فیزیکی کامل را نقشه برداری کنیم زیرا ساده، قابل حمل و قدرتمند است.
 In this post we learned about different techniques to access the physical frames of page tables, including identity mapping, mapping of the complete physical memory, temporary mapping, and recursive page tables. We chose to map the complete physical memory since it's simple, portable, and powerful.
 
+ما نمی توانیم حافظه فیزیکی را از هسته خود بدون دسترسی به جدول صفحه نقشه برداری کنیم، بنابراین به پشتیبانی بوت لودر نیاز داشتیم. جعبه «بوت‌لودر» از ایجاد نقشه‌برداری مورد نیاز از طریق ویژگی‌های بار اختیاری پشتیبانی می‌کند. اطلاعات مورد نیاز را در قالب آرگومان «&BootInfo» به تابع نقطه ورودی ما به هسته ما ارسال می کند.
 We can't map the physical memory from our kernel without page table access, so we needed support from the bootloader. The `bootloader` crate supports creating the required mapping through optional cargo features. It passes the required information to our kernel in the form of a `&BootInfo` argument to our entry point function.
 
+برای پیاده سازی خود، ابتدا جداول صفحه را به صورت دستی پیمایش کردیم تا تابع ترجمه را پیاده سازی کنیم و سپس از نوع «MappedPageTable» جعبه «x86_64» استفاده کردیم. ما همچنین یاد گرفتیم که چگونه نگاشتهای جدید را در جدول صفحه ایجاد کنیم و چگونه `FrameAllocator` لازم را در بالای نقشه حافظه ارسال شده توسط بوت لودر ایجاد کنیم.
 For our implementation, we first manually traversed the page tables to implement a translation function, and then used the `MappedPageTable` type of the `x86_64` crate. We also learned how to create new mappings in the page table and how to create the necessary `FrameAllocator` on top of the memory map passed by the bootloader.
 
 ## What's next?
 
+پست بعدی یک منطقه حافظه پشته برای هسته ما ایجاد می کند، که به ما امکان می دهد [تخصیص حافظه] و استفاده از [انواع مجموعه] مختلف.
 The next post will create a heap memory region for our kernel, which will allow us to [allocate memory] and use various [collection types].
 
 [allocate memory]: https://doc.rust-lang.org/alloc/boxed/struct.Box.html
