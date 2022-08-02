@@ -29,50 +29,50 @@ rtl = true
 
 ## مقدمه
 
-In the [previous post] we added basic support for heap allocations to our kernel. For that, we [created a new memory region][map-heap] in the page tables and [used the `linked_list_allocator` crate][use-alloc-crate] to manage that memory. While we have a working heap now, we left most of the work to the allocator crate without trying to understand how it works.
+در [پست قبلی] پشتیبانی اولیه برای تخصیص هیپ به هسته خود اضافه کردیم. برای آن، ما [یک منطقه حافظه جدید][map-heap] در جداول صفحه ایجاد کردیم و از [از کریت `linked_list_allocator`][use-alloc-crate] برای مدیریت آن حافظه استفاده کردیم. در حالی که ما اکنون یک هیپ داریم که به درستی کار می‌کند، بیشتر کار را به جعبه تخصیص‌دهنده واگذار کردیم بدون اینکه سعی کنیم بفهمیم چگونه کار می‌کند.
 
-[previous post]: @/edition-2/posts/10-heap-allocation/index.md
+[پست قبلی]: @/edition-2/posts/10-heap-allocation/index.md
 [map-heap]: @/edition-2/posts/10-heap-allocation/index.md#creating-a-kernel-heap
 [use-alloc-crate]: @/edition-2/posts/10-heap-allocation/index.md#using-an-allocator-crate
 
-In this post, we will show how to create our own heap allocator from scratch instead of relying on an existing allocator crate. We will discuss different allocator designs, including a simplistic _bump allocator_ and a basic _fixed-size block allocator_, and use this knowledge to implement an allocator with improved performance (compared to the `linked_list_allocator` crate).
+در این پست، ما نشان خواهیم داد که چگونه به جای تکیه بر یک جعبه تخصیص‌دهنده موجود، تخصیص‌دهنده هیپ خود را از ابتدا ایجاد کنیم. ما در مورد طرح‌های تخصیص‌دهنده مختلف، از جمله یک _تخصیص‌دهنده بامپ_ ساده و یک _تخصیص‌دهنده بلوک با اندازه ثابت_ بحث خواهیم کرد، و از این دانش برای پیاده‌سازی یک تخصیص‌دهنده با عملکرد بهبودیافته (در مقایسه با جعبه `linked_list_allocator`) استفاده خواهیم کرد.
 
-### Design Goals
+### اهداف طراحی
 
-The responsibility of an allocator is to manage the available heap memory. It needs to return unused memory on `alloc` calls and keep track of memory freed by `dealloc` so that it can be reused again. Most importantly, it must never hand out memory that is already in use somewhere else because this would cause undefined behavior.
+مسئولیت تخصیص‌دهنده، مدیریت حافظه هیپ موجود است. باید حافظه استفاده نشده را در فراخوانی‌های «alloc» برگرداند و حافظه آزاد شده توسط «dealloc» را پیگیری کند تا بتوان دوباره از آن استفاده کرد. مهمتر از همه، هرگز نباید حافظه‌ای را که در حال حاضر در جای دیگری استفاده می‌شود را در اختیار دیگران قرار دهد زیرا این امر باعث رفتار نامشخص می‌شود.
 
-Apart from correctness, there are many secondary design goals. For example, the allocator should effectively utilize the available memory and keep [_fragmentation_] low. Furthermore, it should work well for concurrent applications and scale to any number of processors. For maximal performance, it could even optimize the memory layout with respect to the CPU caches to improve [cache locality] and avoid [false sharing].
+جدای از صحت آن، اهداف ثانویه زیادی برای این طراحی وجود دارد. به عنوان مثال، تخصیص‌دهنده باید به طور موثر از حافظه موجود استفاده کند و میزان [_تکه‌تکه شدن_] را پایین نگه دارد. علاوه‌بر این، باید برای برنامه‌های همزمان و مقیاس‌پذیری به هر تعداد پردازنده خوب کار کند. برای حداکثر کارایی، حتی می‌تواند چیدمان (layout) حافظه را با توجه به حافظه‌های نهان CPU برای بهبود [cache locality] و جلوگیری از [false sharing] بهینه کند.
 
 [cache locality]: https://www.geeksforgeeks.org/locality-of-reference-and-cache-operation-in-cache-memory/
-[_fragmentation_]: https://en.wikipedia.org/wiki/Fragmentation_(computing)
+[_تکه‌تکه شدن_]: https://en.wikipedia.org/wiki/Fragmentation_(computing)
 [false sharing]: https://mechanical-sympathy.blogspot.de/2011/07/false-sharing.html
 
-These requirements can make good allocators very complex. For example, [jemalloc] has over 30.000 lines of code. This complexity is often undesired in kernel code where a single bug can lead to severe security vulnerabilities. Fortunately, the allocation patterns of kernel code are often much simpler compared to userspace code, so that relatively simple allocator designs often suffice.
+این الزامات می‌تواند تخصیص‌دهنده‌های خوب را بسیار پیچیده کند. برای مثال، [jemalloc] بیش از 30000 خط کد دارد. این پیچیدگی اغلب در کد هسته نامطلوب است، جایی که یک باگ می‌تواند منجر به آسیب‌پذیری‌های امنیتی شدید شود. خوشبختانه، الگوهای تخصیص کد هسته اغلب در مقایسه با کد فضای کاربر بسیار ساده‌تر است، به طوری که طرح‌های تخصیص‌دهنده نسبتا ساده اغلب کافی هستند.
 
 [jemalloc]: http://jemalloc.net/
 
-In the following we present three possible kernel allocator designs and explain their advantages and drawbacks.
+در ادامه سه طرح احتمالی تخصیص‌دهنده هسته را ارائه می‌کنیم و مزایا و معایب آن‌ها را توضیح می‌دهیم.
 
-## Bump Allocator
+## تخصیص‌دهنده بامپ
 
-The most simple allocator design is a _bump allocator_ (also known as _stack allocator_). It allocates memory linearly and only keeps track of the number of allocated bytes and the number of allocations. It is only useful in very specific use cases because it has a severe limitation: it can only free all memory at once.
+ساده‌ترین طراحی تخصیص‌دهنده یک _bump allocator_ است (همچنین به عنوان _stack allocator_ شناخته می‌شود). حافظه را به صورت خطی اختصاص می‌دهد و فقط تعداد بایت‌های اختصاص داده شده و تعداد تخصیص‌ها را پیگیری می‌کند. این فقط در موارد استفاده بسیار خاص مفید است زیرا محدودیت شدیدی دارد: فقط می‌تواند تمام حافظه را یک‌جا آزاد کند.
 
-### Idea
+### ایده
 
-The idea behind a bump allocator is to linearly allocate memory by increasing (_"bumping"_) a `next` variable, which points at the beginning of the unused memory. At the beginning, `next` is equal to the start address of the heap. On each allocation, `next` is increased by the allocation so that it always points to the boundary between used and unused memory:
+ایده پشت تخصیص‌دهنده بامپ تخصیص خطی حافظه با افزایش (یا همان _"bumping"_) متغیر `next` است که به ابتدای حافظه استفاده نشده اشاره می‌کند. در ابتدا، «next» برابر با آدرس شروع هیپ است. در هر تخصیص، `next` با تخصیص افزایش می‌یابد به طوری که همیشه به مرز بین حافظه استفاده شده و استفاده نشده اشاره می‌کند:
 
 ![The heap memory area at three points in time:
  1: A single allocation exists at the start of the heap; the `next` pointer points to its end
  2: A second allocation was added right after the first; the `next` pointer points to the end of the second allocation
  3: A third allocation was added right after the second one; the `next pointer points to the end of the third allocation](bump-allocation.svg)
+ 
+اشاره‌گر `next` فقط در یک جهت حرکت می‌کند و بنابراین هرگز یک منطقه حافظه را دو بار به شما تحویل نمی‌دهد. هنگامی که به انتهای هیپ می‌رسد، دیگر حافظه قابل تخصیص نیست و در نتیجه در تخصیص بعدی خطای خارج از حافظه (out-of-memory) رخ می‌دهد.
 
-The `next` pointer only moves in a single direction and thus never hands out the same memory region twice. When it reaches the end of the heap, no more memory can be allocated, resulting in an out-of-memory error on the next allocation.
+یک تخصیص‌دهنده بامپ اغلب با یک شمارنده تخصیص پیاده‌سازی می‌شود که در هر فراخوانی «alloc» یک واحد افزایش می‌یابد و در هر فراخوانی «dealloc» یک واحد کاهش می‌یابد. هنگامی که شمارنده تخصیص به صفر می‌رسد به این معنی است که همه تخصیص‌ها در پشته تخصیص داده شده‌اند. در این حالت، اشاره‌گر «next» را می‌توان به آدرس شروع هیپ بازنشانی کرد، به طوری که کل حافظه هیپ دوباره برای تخصیص‌ها در دسترس باشد.
 
-A bump allocator is often implemented with an allocation counter, which is increased by 1 on each `alloc` call and decreased by 1 on each `dealloc` call. When the allocation counter reaches zero it means that all allocations on the heap were deallocated. In this case, the `next` pointer can be reset to the start address of the heap, so that the complete heap memory is available to allocations again.
+### پیاده‌سازی
 
-### Implementation
-
-We start our implementation by declaring a new `allocator::bump` submodule:
+ما پیاده‌سازی خود را با تعریف یک زیر ماژول جدید 'allocator::bump' شروع می‌کنیم:
 
 ```rust
 // in src/allocator.rs
@@ -80,7 +80,7 @@ We start our implementation by declaring a new `allocator::bump` submodule:
 pub mod bump;
 ```
 
-The content of the submodule lives in a new `src/allocator/bump.rs` file, which we create with the following content:
+محتوای زیر ماژول در فایل «src/allocator/bump.rs» قرار می‌گیرد که ما با محتوای زیر ایجاد می‌کنیم:
 
 ```rust
 // in src/allocator/bump.rs
@@ -115,17 +115,17 @@ impl BumpAllocator {
 }
 ```
 
-The `heap_start` and `heap_end` fields keep track of the lower and upper bound of the heap memory region. The caller needs to ensure that these addresses are valid, otherwise the allocator would return invalid memory. For this reason, the `init` function needs to be `unsafe` to call.
+فیلدهای «heap_start» و «heap_end» مرز پایین و بالایی ناحیه حافظه هیپ را دنبال می‌کنند. فراخواننده باید مطمئن شود که این آدرس‌ها معتبر هستند، در غیر این صورت تخصیص‌دهنده حافظه نامعتبر را برمی‌گرداند. به همین دلیل، تابع «init» برای فراخوانی باید «unsafe» باشد.
 
-The purpose of the `next` field is to always point to the first unused byte of the heap, i.e. the start address of the next allocation. It is set to `heap_start` in the `init` function because at the beginning the complete heap is unused. On each allocation, this field will be increased by the allocation size (_"bumped"_) to ensure that we don't return the same memory region twice.
+هدف از فیلد «next» این است که همیشه به اولین بایت استفاده نشده هیپ اشاره کند، یعنی آدرس شروع تخصیص بعدی. در تابع 'init' روی 'heap_start' تنظیم شده است زیرا در ابتدا هیپ به صورت کامل استفاده نشده است. در هر تخصیص، این فیلد با اندازه تخصیص افزایش می‌یابد (_"bumped"_) تا اطمینان حاصل شود که منطقه حافظه مشابه را دو بار بر نمی‌گردانیم.
 
-The `allocations` field is a simple counter for the active allocations with the goal of resetting the allocator after the last allocation was freed. It is initialized with 0.
+فیلد «allocations» یک شمارنده ساده برای تخصیص‌های فعال با هدف بازنشانی تخصیص‌دهنده پس از آزاد شدن آخرین تخصیص است. با 0 مقداردهی اولیه می‌شود.
 
-We chose to create a separate `init` function instead of performing the initialization directly in `new` in order to keep the interface identical to the allocator provided by the `linked_list_allocator` crate. This way, the allocators can be switched without additional code changes.
+ما تصمیم گرفتیم به جای اجرای مقداردهی اولیه به طور مستقیم در «new» یک تابع «init» جداگانه ایجاد کنیم تا رابط (interface) را با تخصیص‌دهنده ارائه شده توسط جعبه «linked_list_allocator» یکسان نگه داریم. به این ترتیب، تخصیص‌دهنده‌ها را می‌توان بدون تغییر دادن اضافی کد، سوئیچ کرد.
 
-### Implementing `GlobalAlloc`
+### پیاده‌سازی `GlobalAlloc`
 
-As [explained in the previous post][global-alloc], all heap allocators need to implement the [`GlobalAlloc`] trait, which is defined like this:
+همانطور که [در پست قبلی][global-alloc] توضیح داده شد، همه تخصیص‌دهنده‌های هیپ باید صفت ['GlobalAlloc'] را پیاده‌سازی کنند، که اینگونه تعریف می‌شود:
 
 [global-alloc]: @/edition-2/posts/10-heap-allocation/index.md#the-allocator-interface
 [`GlobalAlloc`]: https://doc.rust-lang.org/alloc/alloc/trait.GlobalAlloc.html
@@ -145,11 +145,11 @@ pub unsafe trait GlobalAlloc {
 }
 ```
 
-Only the `alloc` and `dealloc` methods are required, the other two methods have default implementations and can be omitted.
+فقط متدهای 'alloc' و 'dealloc' مورد نیاز هستند، دو متد دیگر، پیاده‌سازی پیش‌فرض دارند و می توان آن‌ها را حذف کرد.
 
-#### First Implementation Attempt
+#### اولین تلاش برای پیاده‌سازی
 
-Let's try to implement the `alloc` method for our `BumpAllocator`:
+بیایید سعی کنیم روش `alloc` را برای `BumpAllocator` خود پیاده‌سازی کنیم:
 
 ```rust
 // in src/allocator/bump.rs
@@ -171,9 +171,9 @@ unsafe impl GlobalAlloc for BumpAllocator {
 }
 ```
 
-First, we use the `next` field as the start address for our allocation. Then we update the `next` field to point at the end address of the allocation, which is the next unused address on the heap. Before returning the start address of the allocation as a `*mut u8` pointer, we increase the `allocations` counter by 1.
+ابتدا از فیلد «next» به عنوان آدرس شروع برای تخصیص استفاده می‌کنیم. سپس فیلد «next» را به‌روزرسانی می‌کنیم تا به آدرس پایانی تخصیص، که آدرس استفاده نشده بعدی روی هیپ است، اشاره کند. قبل از برگرداندن آدرس شروع تخصیص به عنوان اشاره‌گر «*mut u8»، شمارنده «allocations» را یک واحد افزایش می‌دهیم.
 
-Note that we don't perform any bounds checks or alignment adjustments, so this implementation is not safe yet. This does not matter much because it fails to compile anyway with the following error:
+توجه داشته باشید که ما هیچ‌گونه بررسی کرانه یا تنظیمات تراز را انجام نمی‌دهیم، بنابراین این پیاده‌سازی هنوز ایمن نیست. این خیلی مهم نیست زیرا به هر حال با خطای زیر شکست خورده و کامپایل نمی‌شود:
 
 ```
 error[E0594]: cannot assign to `self.next` which is behind a `&` reference
@@ -183,35 +183,35 @@ error[E0594]: cannot assign to `self.next` which is behind a `&` reference
    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `self` is a `&` reference, so the data it refers to cannot be written
 ```
 
-(The same error also occurs for the `self.allocations += 1` line. We omitted it here for brevity.)
+(همان خطا برای خط `self.allocations += 1` نیز رخ می‌دهد. ما در اینجا برای اختصار آن را حذف کردیم.)
 
-The error occurs because the [`alloc`] and [`dealloc`] methods of the `GlobalAlloc` trait only operate on an immutable `&self` reference, so updating the `next` and `allocations` fields is not possible. This is problematic because updating `next` on every allocation is the essential principle of a bump allocator.
+این خطا به این دلیل رخ می‌دهد که روش‌های ['alloc'] و ['dealloc'] مربوط به صفت 'GlobalAlloc'، فقط بر روی یک مرجع تغییرناپذیر '&self' کار می‌کنند، بنابراین به‌روزرسانی فیلدهای «next» و «allocations» امکان‌پذیر نیست. این مشکل‌ساز است زیرا به روز رسانی «next» در هر تخصیص، اصل اساسی یک تخصیص‌دهنده بامپ است.
 
 [`alloc`]: https://doc.rust-lang.org/alloc/alloc/trait.GlobalAlloc.html#tymethod.alloc
 [`dealloc`]: https://doc.rust-lang.org/alloc/alloc/trait.GlobalAlloc.html#tymethod.dealloc
 
-#### `GlobalAlloc` and Mutability
+#### صفت `GlobalAlloc` و تغییرپذیری
 
-Before we look at a possible solution to this mutability problem, let's try to understand why the `GlobalAlloc` trait methods are defined with `&self` arguments: As we saw [in the previous post][global-allocator], the global heap allocator is defined by adding the `#[global_allocator]` attribute to a `static` that implements the `GlobalAlloc` trait. Static variables are immutable in Rust, so there is no way to call a method that takes `&mut self` on the static allocator. For this reason, all the methods of `GlobalAlloc` only take an immutable `&self` reference.
+قبل از این‌که به یک راه حل ممکن برای این مشکل تغییرپذیری نگاه کنیم، بیایید سعی کنیم بفهمیم که چرا روش‌های صفت «GlobalAlloc» با آرگومان‌های «&self» تعریف می‌شوند: همانطور که [در پست قبلی][global-allocator] دیدیم، تخصیص‌دهنده هیپ سراسری با افزودن ویژگی «#[global_allocator]» به یک «static» که صفت «GlobalAlloc» را پیاده‌سازی می‌کند، تعریف می‌شود. متغیرهای استاتیک در راست، تغییرناپذیر هستند، بنابراین راهی برای فراخوانی متدی که «&mut self» را در تخصیص‌دهنده استاتیک می‌گیرد وجود ندارد. به همین دلیل، همه روش‌های «GlobalAlloc» فقط یک مرجع «&self» تغییرناپذیر می‌گیرند.
 
 [global-allocator]:  @/edition-2/posts/10-heap-allocation/index.md#the-global-allocator-attribute
 
-Fortunately there is a way how to get a `&mut self` reference from a `&self` reference: We can use synchronized [interior mutability] by wrapping the allocator in a [`spin::Mutex`] spinlock. This type provides a `lock` method that performs [mutual exclusion] and thus safely turns a `&self` reference to a `&mut self` reference. We already used the wrapper type multiple times in our kernel, for example for the [VGA text buffer][vga-mutex].
+خوشبختانه راهی وجود دارد که می‌توان مرجع «&mut self» را از یک مرجع «&self» دریافت کرد: می‌توانیم با بسته‌بندی کردن تخصیص‌دهنده در یک اسپین‌لاک (spinlock) [`spin::Mutex`] از [تغییرپذیری داخلی] همگام‌سازی شده استفاده کنیم. این نوع یک روش `lock` ارائه می‌کند که [حذف متقابل] را انجام می‌دهد و بنابراین با خیال راحت یک مرجع `&self` را به مرجع «&mut self» تبدیل می‌کند. ما قبلاً از نوع wrapper چندین بار در هسته خود استفاده کردیم، به عنوان مثال برای [بافر متن VGA][vga-mutex].
 
-[interior mutability]: https://doc.rust-lang.org/book/ch15-05-interior-mutability.html
+[تغییرپذیری داخلی]: https://doc.rust-lang.org/book/ch15-05-interior-mutability.html
 [vga-mutex]: @/edition-2/posts/03-vga-text-buffer/index.md#spinlocks
 [`spin::Mutex`]: https://docs.rs/spin/0.5.0/spin/struct.Mutex.html
-[mutual exclusion]: https://en.wikipedia.org/wiki/Mutual_exclusion
+[حذف متقابل]: https://en.wikipedia.org/wiki/Mutual_exclusion
 
-#### A `Locked` Wrapper Type
+#### یک نوع بسته‌بندی `Locked`
 
-With the help of the `spin::Mutex` wrapper type we can implement the `GlobalAlloc` trait for our bump allocator. The trick is to implement the trait not for the `BumpAllocator` directly, but for the wrapped `spin::Mutex<BumpAllocator>` type:
+با کمک نوع wrapper «spin::Mutex» می‌توانیم صفت «GlobalAlloc» را برای تخصیص‌دهنده بامپ خود پیاده‌سازی کنیم. ترفند این است که این صفت را نه به طور مستقیم برای «BumpAllocator»، بلکه برای نوع «spin::Mutex<BumpAllocator>» بسته‌بندی شده پیاده‌سازی کنید:
 
 ```rust
 unsafe impl GlobalAlloc for spin::Mutex<BumpAllocator> {…}
 ```
 
-Unfortunately, this still doesn't work because the Rust compiler does not permit trait implementations for types defined in other crates:
+متأسفانه، این هنوز کار نمی‌کند زیرا کامپایلر راست اجازه پیاده‌سازی صفت برای انواع تعریف شده در جعبه‌های دیگر را نمی‌دهد:
 
 ```
 error[E0117]: only traits defined in the current crate can be implemented for arbitrary types
@@ -226,7 +226,7 @@ error[E0117]: only traits defined in the current crate can be implemented for ar
    = note: define and implement a trait or new type instead
 ```
 
-To fix this, we need to create our own wrapper type around `spin::Mutex`:
+برای رفع این مشکل، باید نوع wrapper خودمان را در اطراف 'spin::Mutex' ایجاد کنیم:
 
 ```rust
 // in src/allocator.rs
@@ -249,7 +249,7 @@ impl<A> Locked<A> {
 }
 ```
 
-The type is a generic wrapper around a `spin::Mutex<A>`. It imposes no restrictions on the wrapped type `A`, so it can be used to wrap all kinds of types, not just allocators. It provides a simple `new` constructor function that wraps a given value. For convenience, it also provides a `lock` function that calls `lock` on the wrapped `Mutex`. Since the `Locked` type is general enough to be useful for other allocator implementations too, we put it in the parent `allocator` module.
+این نوع، یک بسته‌بندی عمومی در اطراف یک «spin::Mutex<A>» است. هیچ محدودیتی برای نوع بسته‌بندی «A» اعمال نمی‌کند، بنابراین می‌توان از آن برای بسته‌بندی انواع مختلف، نه فقط تخصیص‌دهنده‌ها، استفاده کرد. این یک تابع سازنده ساده «new» ارائه می‌کند که یک مقدار مشخص را بسته‌بندی می‌کند. برای راحتی، یک تابع `lock` نیز ارائه می‌کند که «lock» را در «Mutex» بسته‌بندی شده فراخوانی می‌کند. از آن‌جایی که نوع `Locked` به اندازه کافی عمومی است که برای سایر پیاده‌سازی‌های تخصیص‌دهنده نیز مفید باشد، آن را در ماژول `allocator` والد قرار می‌دهیم.
 
 #### Implementation for `Locked<BumpAllocator>`
 
