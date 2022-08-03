@@ -251,9 +251,9 @@ impl<A> Locked<A> {
 
 این نوع، یک بسته‌بندی عمومی در اطراف یک «spin::Mutex<A>» است. هیچ محدودیتی برای نوع بسته‌بندی «A» اعمال نمی‌کند، بنابراین می‌توان از آن برای بسته‌بندی انواع مختلف، نه فقط تخصیص‌دهنده‌ها، استفاده کرد. این یک تابع سازنده ساده «new» ارائه می‌کند که یک مقدار مشخص را بسته‌بندی می‌کند. برای راحتی، یک تابع `lock` نیز ارائه می‌کند که «lock» را در «Mutex» بسته‌بندی شده فراخوانی می‌کند. از آن‌جایی که نوع `Locked` به اندازه کافی عمومی است که برای سایر پیاده‌سازی‌های تخصیص‌دهنده نیز مفید باشد، آن را در ماژول `allocator` والد قرار می‌دهیم.
 
-#### Implementation for `Locked<BumpAllocator>`
+#### پیاده‌سازی برای `Locked<BumpAllocator>`
 
-The `Locked` type is defined in our own crate (in contrast to `spin::Mutex`), so we can use it to implement `GlobalAlloc` for our bump allocator. The full implementation looks like this:
+نوع «Locked» در جعبه خود ما تعریف شده است (برخلاف «spin::Mutex»)، بنابراین می‌توانیم از آن برای پیاده‌سازی «GlobalAlloc» برای تخصیص‌دهنده بامپ خود استفاده کنیم. پیاده‌سازی کامل آن به صورت زیر است:
 
 ```rust
 // in src/allocator/bump.rs
@@ -292,20 +292,20 @@ unsafe impl GlobalAlloc for Locked<BumpAllocator> {
 }
 ```
 
-The first step for both `alloc` and `dealloc` is to call the [`Mutex::lock`] method through the `inner` field to get a mutable reference to the wrapped allocator type. The instance remains locked until the end of the method, so that no data race can occur in multithreaded contexts (we will add threading support soon).
+اولین قدم برای «alloc» و «dealloc» فراخوانی متد [«Mutex::lock»] از طریق فیلد «inner» است تا یک مرجع تغییرپذیر به نوع تخصیص‌دهنده بسته‌بندی شده دریافت شود. این نمونه تا پایان متد قفل می‌ماند، به طوری که هیچ مسابقه داده‌ای (data race) در زمینه‌های چند نخی نمی‌تواند رخ دهد (به زودی پشتیبانی از نخ را اضافه خواهیم کرد).
 
 [`Mutex::lock`]: https://docs.rs/spin/0.5.0/spin/struct.Mutex.html#method.lock
 
-Compared to the previous prototype, the `alloc` implementation now respects alignment requirements and performs a bounds check to ensure that the allocations stay inside the heap memory region. The first step is to round up the `next` address to the alignment specified by the `Layout` argument. The code for the `align_up` function is shown in a moment. We then add the requested allocation size to `alloc_start` to get the end address of the allocation. To prevent integer overflow on large allocations, we use the [`checked_add`] method. If an overflow occurs or if the resulting end address of the allocation is larger than the end address of the heap, we return a null pointer to signal an out-of-memory situation. Otherwise, we update the `next` address and increase the `allocations` counter by 1 like before. Finally, we return the `alloc_start` address converted to a `*mut u8` pointer.
+در مقایسه با نمونه اولیه قبلی، پیاده‌سازی «alloc» اکنون به الزامات هم‌ترازی احترام می‌گذارد و برای اطمینان از این‌که تخصیص‌ها در ناحیه حافظه هیپ باقی می‌مانند، یک بررسی کرانه‌ها (bounds check) انجام می‌دهد. اولین قدم گرد کردن آدرس «next» به تراز مشخص شده توسط آرگومان «Layout» است. کد تابع `align_up` بزودی نشان داده می شود. سپس اندازه تخصیص درخواستی را به `alloc_start` اضافه می‌کنیم تا آدرس پایانی تخصیص را بدست آوریم. برای جلوگیری از سرریز اعداد صحیح در تخصیص‌های بزرگ، از روش [`checked_add`] استفاده می‌کنیم. اگر سرریز اتفاق بیفتد یا اگر آدرس پایانی تخصیص از آدرس پایانی هیپ بزرگتر باشد، یک اشاره‌گر تهی برای سیگنال دادن به این‌که وضعیت out-of-memory رخ داده برمی‌گردانیم. در غیر این صورت، آدرس `next` را بروز می‌کنیم و شمارنده `allocations` را مانند قبل یک واحد افزایش می‌دهیم. در نهایت، آدرس «alloc_start» را که به اشاره‌گر «*mut u8» تبدیل شده است، برمی‌گردانیم.
 
 [`checked_add`]: https://doc.rust-lang.org/std/primitive.usize.html#method.checked_add
 [`Layout`]: https://doc.rust-lang.org/alloc/alloc/struct.Layout.html
 
-The `dealloc` function ignores the given pointer and `Layout` arguments. Instead, it just decreases the `allocations` counter. If the counter reaches `0` again, it means that all allocations were freed again. In this case, it resets the `next` address to the `heap_start` address to make the complete heap memory available again.
+تابع `dealloc` اشاره‌گر داده شده و آرگومان‌های `Layout` را نادیده می‌گیرد. در عوض، فقط شمارنده «allocations» را کاهش می‌دهد. اگر شمارنده دوباره به `0` رسید، به این معنی است که همه تخصیص ها دوباره آزاد شده‌اند. در این حالت، آدرس «next» را به آدرس «heap_start» بازنشانی می‌کند تا کل حافظه هیپ دوباره در دسترس باشد.
 
-#### Address Alignment
+#### تراز آدرس
 
-The `align_up` function is general enough that we can put it into the parent `allocator` module. A basic implementation looks like this:
+تابع `align_up` به اندازه کافی عمومی است که بتوانیم آن را در ماژول اصلی `allocator` قرار دهیم. یک پیاده‌سازی پایه به این صورت است:
 
 ```rust
 // in src/allocator.rs
@@ -321,11 +321,11 @@ fn align_up(addr: usize, align: usize) -> usize {
 }
 ```
 
-The function first computes the [remainder] of the division of `addr` by `align`. If the remainder is `0`, the address is already aligned with the given alignment. Otherwise, we align the address by subtracting the remainder (so that the new remainder is 0) and then adding the alignment (so that the address does not become smaller than the original address).
+تابع ابتدا [باقی‌مانده] تقسیم «addr» بر «align» را محاسبه می‌کند. اگر باقی‌مانده «0» باشد، آدرس قبلاً با ترازِ داده شده، تراز شده است. در غیر این صورت، آدرس را با کم کردن باقی‌مانده (به طوری که باقی‌مانده جدید 0 باشد) و سپس اضافه کردن تراز (به طوری که آدرس از آدرس اصلی کوچکتر نشود)، تراز می‌کنیم.
 
-[remainder]: https://en.wikipedia.org/wiki/Euclidean_division
+[باقی‌مانده]: https://en.wikipedia.org/wiki/Euclidean_division
 
-Note that this isn't the most efficient way to implement this function. A much faster implementation looks like this:
+توجه داشته باشید که این کارآمدترین راه برای پیاده‌سازی این تابع نیست. پیاده‌سازی بسیار سریع‌تر به این صورت است:
 
 ```rust
 /// Align the given address `addr` upwards to alignment `align`.
@@ -336,24 +336,24 @@ fn align_up(addr: usize, align: usize) -> usize {
 }
 ```
 
-This method utilizes that the `GlobalAlloc` trait guarantees that `align` is always a power of two. This makes it possible to create a [bitmask] to align the address in a very efficient way. To understand how it works, let's go through it step by step starting on the right side:
+این متد از این استفاده می‌کند که صفت «GlobalAlloc» تضمین می‌کند که «align» همیشه توان دو است. این امکانِ ایجاد یک [bitmask] را برای تراز کردن آدرس به شیوه‌ای بسیار کارآمد را فراهم می‌کند. برای این‌که بفهمیم چگونه کار می‌کند، اجازه دهید مرحله به مرحله آن را از سمت راست شروع کنیم:
 
 [bitmask]: https://en.wikipedia.org/wiki/Mask_(computing)
 
-- Since `align` is a power of two, its [binary representation] has only a single bit set (e.g. `0b000100000`). This means that `align - 1` has all the lower bits set (e.g. `0b00011111`).
-- By creating the [bitwise `NOT`] through the `!` operator, we get a number that has all the bits set except for the bits lower than `align` (e.g. `0b…111111111100000`).
-- By performing a [bitwise `AND`] on an address and `!(align - 1)`, we align the address _downwards_. This works by clearing all the bits that are lower than `align`.
-- Since we want to align upwards instead of downwards, we increase the `addr` by `align - 1` before performing the bitwise `AND`. This way, already aligned addresses remain the same while non-aligned addresses are rounded to the next alignment boundary.
+- از آن‌جایی که «align» توان دو است، [نمایش باینری] آن تنها یک مجموعه بیت دارد (مثلاً «0b000100000»). این بدان معناست که «align - 1» دارای تمام بیت‌های پایین‌تر است (مثلاً «0b00011111»).
+- با ایجاد [bitwise `NOT`] از طریق عملگر «!»، عددی دریافت می‌کنیم که همه بیت‌ها به جز بیت‌های پایین‌تر از «align» تنظیم شده است (مثلاً «0b…111111111100000»).
+- با انجام یک [bitwise `AND`] روی یک آدرس و `!(align - 1)`، آدرس _کاهشی_ را تراز می‌کنیم. این کار با پاک کردن تمام بیت‌هایی که پایین‌تر از «align» هستند انجام می‌شود.
+- از آن‌جایی که می‌خواهیم به جای تراز کردن به سمت پایین به سمت بالا تراز کنیم، قبل از اجرای بیت «AND»، مقدار «addr» را با «align - 1» افزایش می‌دهیم. به این ترتیب، آدرس‌های از قبل تراز شده ثابت می‌مانند در حالی که آدرس‌های تراز نشده به مرز تراز بعدی گرد می‌شوند.
 
-[binary representation]: https://en.wikipedia.org/wiki/Binary_number#Representation
+[نمایش باینری]: https://en.wikipedia.org/wiki/Binary_number#Representation
 [bitwise `NOT`]: https://en.wikipedia.org/wiki/Bitwise_operation#NOT
 [bitwise `AND`]: https://en.wikipedia.org/wiki/Bitwise_operation#AND
 
-Which variant you choose it up to you. Both compute the same result, only using different methods.
+این‌که کدام نوع آن را انتخاب کنید به شما بستگی دارد. هر دو نتیجه‌ای یکسان را محاسبه می‌کنند، فقط از متدهای مختلف استفاده می‌کنند.
 
-### Using It
+### استفاده کردن از آن
 
-To use the bump allocator instead of the `linked_list_allocator` crate, we need to update the `ALLOCATOR` static in `allocator.rs`:
+برای استفاده از تخصیص‌دهنده بامپ بجای جعبه «linked_list_allocator»، باید استاتیک «ALLOCATOR» را در «allocator.rs» بروزرسانی کنیم:
 
 ```rust
 // in src/allocator.rs
@@ -364,15 +364,15 @@ use bump::BumpAllocator;
 static ALLOCATOR: Locked<BumpAllocator> = Locked::new(BumpAllocator::new());
 ```
 
-Here it becomes important that we declared `BumpAllocator::new` and `Locked::new` as [`const` functions]. If they were normal functions, a compilation error would occur because the initialization expression of a `static` must evaluable at compile time.
+در اینجا مهم است که «BumpAllocator::new» و «Locked::new» را به عنوان [تابع‌های `const`] تعریف کنیم. اگر آن‌ها توابع معمولی بودند، یک خطای کامپایل رخ می‌داد زیرا عبارت اولیه یک «static» باید در زمان کامپایل قابل ارزیابی باشد.
 
-[`const` functions]: https://doc.rust-lang.org/reference/items/functions.html#const-functions
+[تابع‌های `const`]: https://doc.rust-lang.org/reference/items/functions.html#const-functions
 
-We don't need to change the  `ALLOCATOR.lock().init(HEAP_START, HEAP_SIZE)` call in our `init_heap` function because the bump allocator provides the same interface as the allocator provided by the `linked_list_allocator`.
+ما نیازی به تغییر فراخوان `ALLOCATOR.lock().init(HEAP_START, HEAP_SIZE)` در تابع «init_heap» نداریم زیرا تخصیص‌دهنده بامپ همان رابطی را ارائه می‌دهد که تخصیص‌دهنده ارائه شده توسط «linked_list_allocator» ارائه می‌دهد.
 
-Now our kernel uses our bump allocator! Everything should still work, including the [`heap_allocation` tests] that we created in the previous post:
+اکنون هسته از تخصیص‌دهنده بامپ ما استفاده می‌کند! همه چیز همچنان باید کار کند، از جمله [تست‌های `heap_allocation`] که در پست قبلی ایجاد کردیم:
 
-[`heap_allocation` tests]: @/edition-2/posts/10-heap-allocation/index.md#adding-a-test
+[تست‌های `heap_allocation`]: @/edition-2/posts/10-heap-allocation/index.md#adding-a-test
 
 ```
 > cargo test --test heap_allocation
@@ -383,21 +383,21 @@ large_vec... [ok]
 many_boxes... [ok]
 ```
 
-### Discussion
+### بحث کردن
 
-The big advantage of bump allocation is that it's very fast. Compared to other allocator designs (see below) that need to actively look for a fitting memory block and perform various bookkeeping tasks on `alloc` and `dealloc`, a bump allocator [can be optimized][bump downwards] to just a few assembly instructions. This makes bump allocators useful for optimizing the allocation performance, for example when creating a [virtual DOM library].
+مزیت بزرگ تخصیص بامپ، بسیار سریع بودن آن است. در مقایسه با سایر طرح‌های تخصیص‌دهنده (به زیر مراجعه کنید) که باید به طور فعال به دنبال یک بلوک حافظه مناسب بگردند و وظایف ساماندهی مختلف را در «alloc» و «dealloc» انجام دهند، یک تخصیص‌دهنده بامپ را [می‌توان بهینه‌سازی کرد] به صورتی که تنها چند دستورالعمل اسمبلی باشد. این باعث می‌شود که تخصیص‌دهنده‌های بامپ برای بهینه‌سازی عملکرد تخصیص مفید باشند، به عنوان مثال هنگام ایجاد یک [کتابخانه مجازی DOM].
 
 [bump downwards]: https://fitzgeraldnick.com/2019/11/01/always-bump-downwards.html
-[virtual DOM library]: https://hacks.mozilla.org/2019/03/fast-bump-allocated-virtual-doms-with-rust-and-wasm/
+[کتابخانه مجازی DOM]: https://hacks.mozilla.org/2019/03/fast-bump-allocated-virtual-doms-with-rust-and-wasm/
 
-While a bump allocator is seldom used as the global allocator, the principle of bump allocation is often applied in form of [arena allocation], which basically batches individual allocations together to improve performance. An example for an arena allocator for Rust is the [`toolshed`] crate.
+در حالی که یک تخصیص‌دهنده به ندرت به عنوان تخصیص‌دهنده سراسری استفاده می‌شود، اصول تخصیص بامپ اغلب به شکل [تخصیص عرصه] (arena allocation) اعمال می‌شود، که اساسا تخصیص‌های تکی را با هم دسته‌بندی می‌کند تا عملکرد را بهبود ببخشد. نمونه‌ای برای تخصیص‌دهنده عرصه برای راست، جعبه ['toolshed'] است.
 
-[arena allocation]: https://mgravell.github.io/Pipelines.Sockets.Unofficial/docs/arenas.html
+[تخصیص عرصه]: https://mgravell.github.io/Pipelines.Sockets.Unofficial/docs/arenas.html
 [`toolshed`]: https://docs.rs/toolshed/0.8.1/toolshed/index.html
 
 #### The Drawback of a Bump Allocator
 
-The main limitation of a bump allocator is that it can only reuse deallocated memory after all allocations have been freed. This means that a single long-lived allocation suffices to prevent memory reuse. We can see this when we add a variation of the `many_boxes` test:
+محدودیت اصلی یک تخصیص‌دهنده بامپ این است که تنها پس از آزاد شدن همه تخصیص‌ها می‌تواند از حافظه اختصاص داده شده مجددا استفاده کند. این بدان معنی است که یک تخصیص طولانی مدت برای جلوگیری از استفاده مجدد از حافظه کافی است. ما می‌توانیم این را زمانی ببینیم که تغییری از تست «many_boxes» را اضافه کنیم:
 
 ```rust
 // in tests/heap_allocation.rs
@@ -413,9 +413,9 @@ fn many_boxes_long_lived() {
 }
 ```
 
-Like the `many_boxes` test, this test creates a large number of allocations to provoke an out-of-memory failure if the allocator does not reuse freed memory. Additionally, the test creates a `long_lived` allocation, which lives for the whole loop execution.
+مانند تست «جعبه_های many_boxes»، این تست تعداد زیادی تخصیص ایجاد می‌کند تا در صورت عدم استفاده مجدد از حافظه آزاد شده توسط تخصیص‌دهنده، شکست out-of-memory ایجاد کند. علاوه‌بر این، تست تخصیص «long_lived» ایجاد می‌کند که برای کل اجرای حلقه زنده می‌ماند.
 
-When we try run our new test, we see that it indeed fails:
+وقتی تست جدید خود را اجرا می‌کنیم، می‌بینیم که واقعاً شکست می‌خورد:
 
 ```
 > cargo test --test heap_allocation
@@ -428,44 +428,44 @@ many_boxes_long_lived... [failed]
 Error: panicked at 'allocation error: Layout { size_: 8, align_: 8 }', src/lib.rs:86:5
 ```
 
-Let's try to understand why this failure occurs in detail: First, the `long_lived` allocation is created at the start of the heap, thereby increasing the `allocations` counter by 1. For each iteration of the loop, a short lived allocation is created and directly freed again before the next iteration starts. This means that the `allocations` counter is temporarily increased to 2 at the beginning of an iteration and decreased to 1 at the end of it. The problem now is that the bump allocator can only reuse memory when _all_ allocations have been freed, i.e. the `allocations` counter falls to 0. Since this doesn't happen before the end of the loop, each loop iteration allocates a new region of memory, leading to an out-of-memory error after a number of iterations.
+بیایید سعی کنیم دلیل وقوع این شکست را با جزئیات بفهمیم: اول، تخصیص `long_lived` در ابتدای هیپ ایجاد می‌شود، در نتیجه شمارنده `allocations` را یک واحد افزایش می‌دهد. برای هر تکرار (iteration) حلقه، یک تخصیص کوتاه مدت ایجاد می‌شود. و مستقیماً قبل از شروع تکرار بعدی دوباره آزاد می‌شود. این بدان معناست که شمارنده «allocations» به طور موقت در ابتدای یک تکرار به 2 افزایش یافته و در پایان آن به 1 کاهش می‌یابد. مشکل اکنون این است که تخصیص‌دهنده بامپ تنها زمانی می‌تواند از حافظه مجدد استفاده کند که _همه_ تخصیص‌ها آزاد شده باشند، یعنی شمارنده «allocations» به 0 برسد. از آن‌جایی که این قبل از پایان حلقه اتفاق نمی‌افتد، هر تکرار حلقه، منطقه جدیدی از حافظه را اختصاص می‌دهد، که پس از چند بار تکرار منجر به خطای out-of-memory می‌شود.
 
-#### Fixing the Test?
+#### اصلاح کردن تست؟
 
-There are two potential tricks that we could utilize to fix the test for our bump allocator:
+دو ترفند بالقوه وجود دارد که می‌توانیم از آن‌ها برای اصلاح تست تخصیص‌دهنده بامپ استفاده کنیم:
 
-- We could update `dealloc` to check whether the freed allocation was the last allocation returned by `alloc` by comparing its end address with the `next` pointer. In case they're equal, we can safely reset `next` back to the start address of the freed allocation. This way, each loop iteration reuses the same memory block.
-- We could add an `alloc_back` method that allocates memory from the _end_ of the heap using an additional `next_back` field. Then we could manually use this allocation method for all long-lived allocations, thereby separating short-lived and long-lived allocations on the heap. Note that this separation only works if it's clear beforehand how long each allocation lives. Another drawback of this approach is that manually performing allocations is cumbersome and potentially unsafe.
+- می‌توانیم «dealloc» را بروزرسانی کنیم تا بررسی کنیم که آیا تخصیص آزاد شده آخرین تخصیصی است که «alloc» با مقایسه آدرس پایانی آن با اشاره‌گر «بعدی» بازگردانده است. در صورت مساوی بودن، می‌توانیم با خیال راحت «next» را به آدرس شروع تخصیص آزاد شده بازنشانی کنیم. به این ترتیب، هر تکرار حلقه از همان بلوک حافظه مجدداً استفاده می‌کند.
+- می‌توانیم یک متد «alloc_back» اضافه کنیم که با استفاده از یک فیلد اضافی «next_back»، حافظه را از _انتهای_ هیپ تخصیص دهد. سپس می‌توانیم به‌صورت دستی از این متد تخصیص برای همه تخصیص‌های طولانی‌مدت استفاده کنیم و بدین ترتیب تخصیص‌های کوتاه‌مدت و طولانی‌مدت را در هیپ جدا کنیم. توجه داشته باشید که این جداسازی تنها در صورتی کار می‌کند که از قبل مشخص شده باشد که هر تخصیص چقدر طول می‌کشد. یکی دیگر از اشکالات این رویکرد این است که انجام دستی تخصیص‌ها دست و پا گیر و به طور بالقوه ناامن است.
 
-While both of these approaches work to fix the test, they are no general solution since they are only able to reuse memory in very specific cases. The question is: Is there a general solution that reuses _all_ freed memory?
+در حالی که هر دوی این رویکردها برای اصلاح تست کار می‌کنند، اما راه حل کلی نیستند زیرا فقط در موارد بسیار خاص قادر به استفاده مجدد از حافظه هستند. سوال این است: آیا راه حل کلی برای استفاده مجدد از _تمام_ حافظه آزاد شده وجود دارد؟
 
-#### Reusing All Freed Memory?
+#### استفاده مجدد از تمام حافظه آزاد شده؟
 
-As we learned [in the previous post][heap-intro], allocations can live arbitrarily long and can be freed in an arbitrary order. This means that we need to keep track of a potentially unbounded number of non-continuous, unused memory regions, as illustrated by the following example:
+همانطور که [در پست قبلی][heap-intro] آموختیم، تخصیص‌ها می‌توانند به‌طور خودسرانه عمر طولانی داشته باشند و می‌توانند به ترتیب دلخواه آزاد شوند. این بدان معنی است که ما باید تعداد بالقوه نامحدودی از مناطق حافظه غیرمستمر و استفاده نشده را پیگیری کنیم، همانطور که در مثال زیر نشان داده شده است:
 
 [heap-intro]: @/edition-2/posts/10-heap-allocation/index.md#dynamic-memory
 
 ![](allocation-fragmentation.svg)
 
-The graphic shows the heap over the course of time. At the beginning, the complete heap is unused and the `next` address is equal to `heap_start` (line 1). Then the first allocation occurs (line 2). In line 3, a second memory block is allocated and the first allocation is freed. Many more allocations are added in line 4. Half of them are very short-lived and already get freed in line 5, where also another new allocation is added.
+تصویر بالا هیپ را در طول زمان نشان می‌دهد. در ابتدا، هیپ کامل استفاده نشده است و آدرس «next» برابر با «heap_start» است (خط 1). سپس اولین تخصیص رخ می‌دهد (خط 2). در خط 3، دومین بلوک حافظه تخصیص داده شده و اولین تخصیص آزاد می‌شود. تخصیص‌های بسیار بیشتری در خط 4 اضافه شده است. نیمی از آن‌ها بسیار کوتاه مدت هستند و در حال حاضر در خط 5 آزاد شده‌اند، جایی که تخصیص جدید دیگری نیز اضافه شده است.
 
-Line 5 shows the fundamental problem: We have five unused memory regions with different sizes in total, but the `next` pointer can only point to the beginning of the last region. While we could store the start addresses and sizes of the other unused memory regions in an array of size 4 for this example, this isn't a general solution since we could easily create an example with 8, 16, or 1000 unused memory regions.
+خط 5 مشکل اساسی را نشان می‌دهد: ما در مجموع پنج منطقه حافظه استفاده نشده با اندازه‌های مختلف داریم، اما اشاره‌گر «next» فقط می‌تواند به ابتدای آخرین منطقه اشاره کند. در حالی که می‌توانیم آدرس‌های شروع و اندازه‌های دیگر مناطق حافظه استفاده نشده را در آرایه‌ای با اندازه 4 برای این مثال ذخیره کنیم، این یک راه حل کلی نیست زیرا می‌توانیم به راحتی یک مثال با 8، 16 یا 1000 منطقه حافظه استفاده نشده ایجاد کنیم.
 
-Normally when we have a potentially unbounded number of items, we can just use a heap allocated collection. This isn't really possible in our case, since the heap allocator can't depend on itself (it would cause endless recursion or deadlocks). So we need to find a different solution.
+معمولاً وقتی تعداد موارد بالقوه نامحدودی داریم، فقط می‌توانیم از یک مجموعه تخصیص داده شده هیپ استفاده کنیم. این واقعاً در مورد ما امکان‌پذیر نیست، زیرا تخصیص‌دهنده هیپ نمی‌تواند به خودش وابسته باشد (این امر باعث بازگشت بی‌پایان یا بن‌بست می‌شود). پس باید راه حل متفاوتی پیدا کنیم.
 
-## Linked List Allocator
+## تخصیص‌دهنده لیست پیوندی
 
-A common trick to keep track of an arbitrary number of free memory areas when implementing allocators is to use these areas itself as backing storage. This utilizes the fact that the regions are still mapped to a virtual address and backed by a physical frame, but the stored information is not needed anymore. By storing the information about the freed region in the region itself, we can keep track of an unbounded number of freed regions without needing additional memory.
+یک ترفند رایج برای ردیابی تعداد دلخواه مناطق حافظه آزاد هنگام اجرای تخصیص‌دهنده‌ها، استفاده از خود این مناطق به عنوان حافظه پشتیبان است. زیرا می‌دانیم که مناطق هنوز به یک آدرس مجازی نگاشت شده و توسط یک فریم فیزیکی پشتیبانی می‌شوند، اما اطلاعات ذخیره شده دیگر مورد نیاز نیست. با ذخیره اطلاعات مربوط به منطقه آزاد شده در خود منطقه، می‌توانیم تعداد نامحدودی از مناطق آزاد شده را بدون نیاز به حافظه اضافی پیگیری کنیم.
 
-The most common implementation approach is to construct a single linked list in the freed memory, with each node being a freed memory region:
+رایج‌ترین رویکرد پیاده‌سازی، ساخت یک لیست پیوندی واحد در حافظه آزاد شده است که هر گره (node) یک منطقه حافظه آزاد شده است:
 
 ![](linked-list-allocation.svg)
 
-Each list node contains two fields: The size of the memory region and a pointer to the next unused memory region. With this approach, we only need a pointer to the first unused region (called `head`) to keep track of all unused regions, independent of their number. The resulting data structure is often called a [_free list_].
+هر گره لیست شامل دو فیلد است: اندازه ناحیه حافظه و یک اشاره‌گر به ناحیه حافظه استفاده نشده بعدی. با این رویکرد، ما فقط به یک اشاره‌گر به اولین منطقه استفاده نشده (به نام `head`) نیاز داریم تا همه مناطق استفاده نشده را مستقل از تعداد آن‌ها پیگیری کنیم. ساختار داده حاصل اغلب [_لیست رایگان_] (free list) نامیده می‌شود.
 
-[_free list_]: https://en.wikipedia.org/wiki/Free_list
+[_لیست رایگان_]: https://en.wikipedia.org/wiki/Free_list
 
-As you might guess from the name, this is the technique that the `linked_list_allocator` crate uses. Allocators that use this technique are also often called _pool allocators_.
+همان‌طور که ممکن است از نام آن حدس بزنید، این تکنیکی است که جعبه «linked_list_allocator» از آن استفاده می‌کند. تخصیص‌دهنده‌هایی که از این تکنیک استفاده می‌کنند اغلب _pool allocators_ نیز نامیده می‌شوند.
 
 ### Implementation
 
