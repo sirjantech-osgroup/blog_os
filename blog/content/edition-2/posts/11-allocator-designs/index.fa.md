@@ -467,13 +467,13 @@ Error: panicked at 'allocation error: Layout { size_: 8, align_: 8 }', src/lib.r
 
 همان‌طور که ممکن است از نام آن حدس بزنید، این تکنیکی است که جعبه «linked_list_allocator» از آن استفاده می‌کند. تخصیص‌دهنده‌هایی که از این تکنیک استفاده می‌کنند اغلب _pool allocators_ نیز نامیده می‌شوند.
 
-### Implementation
+### پیاده‌سازی
 
-In the following, we will create our own simple `LinkedListAllocator` type that uses the above approach for keeping track of freed memory regions. This part of the post isn't required for future posts, so you can skip the implementation details if you like.
+در ادامه، نوع ساده «LinkedListAllocator» خود را ایجاد خواهیم کرد که از رویکرد بالا برای پیگیری مناطق آزاد شده حافظه استفاده می‌کند. این قسمت از پست برای پست‌های بعدی مورد نیاز نیست، بنابراین در صورت تمایل می‌توانید جزئیات پیاده‌سازی را نادیده بگیرید.
 
-#### The Allocator Type
+#### نوع تخصیص‌دهنده
 
-We start by creating a private `ListNode` struct in a new `allocator::linked_list` submodule:
+ما با ایجاد یک ساختمان «ListNode» خصوصی در یک زیر ماژول جدید «allocator::linked_list» شروع می‌کنیم:
 
 ```rust
 // in src/allocator.rs
@@ -490,12 +490,12 @@ struct ListNode {
 }
 ```
 
-Like in the graphic, a list node has a `size` field and an optional pointer to the next node, represented by the `Option<&'static mut ListNode>` type. The `&'static mut` type semantically describes an [owned] object behind a pointer. Basically, it's a [`Box`] without a destructor that frees the object at the end of the scope.
+مانند تصویر، یک لیست گره دارای یک فیلد «size» و یک اشاره‌گر اختیاری به گره بعدی است که با نوع «Option<&'static mut ListNode>» نمایش داده می‌شود. نوع '&'static mut' به صورت معنایی یک شیء [تعلق داده شده] را در پشت یک اشاره‌گر توصیف می‌کند. اساساً، این یک ['Box'] بدون مخرب است که شیء را در انتهای محدوده آزاد می‌کند.
 
 [owned]: https://doc.rust-lang.org/book/ch04-01-what-is-ownership.html
 [`Box`]: https://doc.rust-lang.org/alloc/boxed/index.html
 
-We implement the following set of methods for `ListNode`:
+ما مجموعه متدهای زیر را برای «ListNode» پیاده‌سازی می‌کنیم:
 
 ```rust
 // in src/allocator/linked_list.rs
@@ -515,11 +515,11 @@ impl ListNode {
 }
 ```
 
-The type has a simple constructor function named `new` and methods to calculate the start and end addresses of the represented region. We make the `new` function a [const function], which will be required later when constructing a static linked list allocator. Note that any use of mutable references in const functions (including setting the `next` field to `None`) is still unstable. In order to get it to compile, we need to add **`#![feature(const_mut_refs)]`** to the beginning of our `lib.rs`.
+این نوع دارای یک تابع سازنده ساده به نام `new` و متدهایی برای محاسبه آدرس‌های شروع و پایان منطقه مربوطه است. ما تابع `new` را یک [تابع const] می‌کنیم، که بعداً هنگام ساخت یک تخصیص‌دهنده لیست پیوندی استاتیک مورد نیاز خواهد بود. توجه داشته باشید که هرگونه استفاده از مراجع قابل تغییر در توابع const (از جمله تنظیم فیلد «next» با مقدار «None») همچنان ناپایدار است. برای این‌که بتوانیم آن را کامپایل کنیم، باید **`#![feature(const_mut_refs)]`** را به ابتدای `lib.rs` خود اضافه کنیم.
 
-[const function]: https://doc.rust-lang.org/reference/items/functions.html#const-functions
+[تابع const]: https://doc.rust-lang.org/reference/items/functions.html#const-functions
 
-With the `ListNode` struct as building block, we can now create the `LinkedListAllocator` struct:
+با ساختمان «ListNode» به عنوان بلوک سازنده، اکنون می‌توانیم ساختمان «LinkedListAllocator» را ایجاد کنیم:
 
 ```rust
 // in src/allocator/linked_list.rs
@@ -552,21 +552,21 @@ impl LinkedListAllocator {
 }
 ```
 
-The struct contains a `head` node that points to the first heap region. We are only interested in the value of the `next` pointer, so we set the `size` to 0 in the `ListNode::new` function. Making `head` a `ListNode` instead of just a `&'static mut ListNode` has the advantage that the implementation of the `alloc` method will be simpler.
+ساختار- شامل یک گره 'head' است که به اولین ناحیه هیپ اشاره می‌کند. ما فقط به مقدار نشانگر «next» نیاز داریم، بنابراین «size» را در تابع «ListNode::new» روی 0 قرار می‌دهیم. ساختن «head» به عنوان یک «ListNode» به جای `&'static mut ListNode` این مزیت را دارد که اجرای- روش- «alloc» ساده‌تر خواهد بود.
 
-Like for the bump allocator, the `new` function doesn't initialize the allocator with the heap bounds. In addition to maintaining API compatibility, the reason is that the initialization routine requires to write a node to the heap memory, which can only happen at runtime. The `new` function, however, needs to be a [`const` function] that can be evaluated at compile time, because it will be used for initializing the `ALLOCATOR` static. For this reason, we again provide a separate, non-constant `init` method.
+مانند تخصیص‌دهنده بامپ، تابع `new` تخصیص‌دهنده را با کران پشته- مقداردهی اولیه نمی‌کند. علاوه‌بر حفظ سازگاری API، دلیلش این است که روال مقداردهی اولیه نیاز به نوشتن یک گره در حافظه پشته- دارد که فقط در زمان اجرا می‌تواند اتفاق بیفتد. با این حال، تابع `new` باید یک تابع [«const»] باشد که بتوان آن را در زمان کامپایل ارزیابی کرد، زیرا برای مقداردهی اولیه استاتیک «ALLOCATOR» استفاده خواهد شد. به همین دلیل، ما دوباره یک روش- «init» مجزا و غیر ثابت (non-constant) ارائه می‌کنیم.
 
 [`const` function]: https://doc.rust-lang.org/reference/items/functions.html#const-functions
 
-The `init` method uses a `add_free_region` method, whose implementation will be shown in a moment. For now, we use the [`todo!`] macro to provide a placeholder implementation that always panics.
+متد «init» از روش- «add_free_region» استفاده می‌کند که پیاده‌سازی آن بزودی نشان داده می‌شود. در حال حاضر، ما از ماکرو ['todo!'] برای ارائه یک نگهدارنده مکان که همیشه پنیک زده می‌کند استفاده می‌کنیم.
 
 [`todo!`]: https://doc.rust-lang.org/core/macro.todo.html
 
-#### The `add_free_region` Method
+#### متد `add_free_region`
 
-The `add_free_region` method provides the fundamental _push_ operation on the linked list. We currently only call this method from `init`, but it will also be the central method in our `dealloc` implementation. Remember, the `dealloc` method is called when an allocated memory region is freed again. To keep track of this freed memory region, we want to push it to the linked list.
+روش- «add_free_region» عملیات اساسی _پوش کردن_ را در لیست پیوند شده ارائه می‌کند. ما در حال حاضر فقط این متد را از «init» فراخوانی می‌کنیم، اما این متد در پیاده‌سازی «dealloc» ما نیز خواهد بود. به یاد داشته باشید، متد 'dealloc' زمانی فراخوانی می‌شود که یک منطقه حافظه اختصاص داده شده دوباره آزاد شود. برای پیگیری این منطقه حافظه آزاد شده، می‌خواهیم آن را به لیست پیوندی منتقل کنیم.
 
-The implementation of the `add_free_region` method looks like this:
+اجرای- متد «add_free_region» به شکل زیر است:
 
 ```rust
 // in src/allocator/linked_list.rs
@@ -591,15 +591,15 @@ impl LinkedListAllocator {
 }
 ```
 
-The method takes a memory region represented by an address and size as argument and adds it to the front of the list. First, it ensures that the given region has the necessary size and alignment for storing a `ListNode`. Then it creates the node and inserts it to the list through the following steps:
+این روش- یک منطقه حافظه که با آدرس و اندازه نشان داده شده است را به عنوان آرگومان می‌گیرد و آن را به جلوی لیست اضافه می‌کند. ابتدا، اطمینان حاصل می‌کند که منطقه داده شده دارای اندازه و تراز لازم برای ذخیره یک «ListNode» است. سپس گره را ایجاد کرده و طی مراحل زیر آن را در لیست قرار می دهد:
 
 ![](linked-list-allocator-push.svg)
 
-Step 0 shows the state of the heap before `add_free_region` is called. In step 1, the method is called with the memory region marked as `freed` in the graphic. After the initial checks, the method creates a new `node` on its stack with the size of the freed region. It then uses the [`Option::take`] method to set the `next` pointer of the node to the current `head` pointer, thereby resetting the `head` pointer to `None`.
+مرحله 0 وضعیت پشته- را قبل از فراخوانی «add_free_region» نشان می‌دهد. در مرحله 1، متد با ناحیه حافظه که در تصویر به عنوان `freed` مشخص شده است فراخوانی می‌شود. پس از بررسی‌های اولیه، متد یک `node` جدید در پشته- خود با اندازه منطقه آزاد شده ایجاد می‌کند. سپس از روش- ['Option::take'] استفاده می‌کند تا نشانگر «next» گره را روی نشانگر «head» فعلی تنظیم کند، در نتیجه نشانگر «head» را به «None» بازنشانی می‌کند.
 
 [`Option::take`]: https://doc.rust-lang.org/core/option/enum.Option.html#method.take
 
-In step 2, the method writes the newly created `node` to the beginning of the freed memory region through the [`write`] method. It then points the `head` pointer to the new node. The resulting pointer structure looks a bit chaotic because the freed region is always inserted at the beginning of the list, but if we follow the pointers we see that each free region is still reachable from the `head` pointer.
+در مرحله 2، متد، «node» تازه ایجاد شده را از طریق متد ['write'] در ابتدای منطقه حافظه آزاد شده می‌نویسد. سپس نشانگر 'head' را به گره جدید متصل می‌دهد. ساختار اشاره‌گر حاصل کمی آشفته به نظر می‌رسد زیرا ناحیه آزاد شده همیشه در ابتدای لیست درج می‌شود، اما اگر نشانگرها را دنبال کنیم می‌بینیم که هر منطقه آزاد هنوز از نشانگر 'head' قابل دسترسی است.
 
 [`write`]: https://doc.rust-lang.org/std/primitive.pointer.html#method.write
 
