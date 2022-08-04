@@ -808,68 +808,51 @@ many_boxes_long_lived... [ok]
 
 #### Merging Freed Blocks
 
-مشکل اصلی پیاده سازی ما این است که فقط پشته را به بلوک های کوچکتر تقسیم می کند، اما هرگز آنها را دوباره با هم ادغام نمی کند. این مثال را در نظر بگیرید:
-The main problem of our implementation is that it only splits the heap into smaller blocks, but never merges them back together. Consider this example:
+مشکل اصلی پیاده‌سازی ما این است که فقط پشته- را به بلوک‌های کوچکتر تقسیم می‌کند، اما هرگز آن‌ها را دوباره با هم ادغام نمی‌کند. این مثال را در نظر بگیرید:
 
 ![](linked-list-allocator-fragmentation-on-dealloc.svg)
 
-در خط اول، سه تخصیص روی پشته ایجاد می شود. دو تا از آنها دوباره در خط 2 و سومی در خط 3 آزاد می شوند. اکنون پشته کامل دوباره استفاده نشده است، اما همچنان به چهار بلوک جداگانه تقسیم می شود. در این مرحله، تخصیص بزرگ ممکن است دیگر امکان پذیر نباشد زیرا هیچ یک از چهار بلوک به اندازه کافی بزرگ نیست. با گذشت زمان، این روند ادامه می یابد و پشته به بلوک های کوچکتر و کوچکتر تقسیم می شود. در برخی مواقع، پشته آنقدر تکه تکه می شود که حتی تخصیص اندازه معمولی نیز با شکست مواجه می شود.
-In the first line, three allocations are created on the heap. Two of them are freed again in line 2 and the third is freed in line 3. Now the complete heap is unused again, but it is still split into four individual blocks. At this point, a large allocation might not be possible anymore because none of the four blocks is large enough. Over time, the process continues and the heap is split into smaller and smaller blocks. At some point, the heap is so fragmented that even normal sized allocations will fail.
+در خط اول، سه تخصیص روی پشته- ایجاد می‌شود. دو تا از آن‌ها دوباره در خط 2 و سومی در خط 3 آزاد می‌شوند. اکنون کل پشته- دوباره استفاده نشده است، اما همچنان به چهار بلوک جداگانه تقسیم می‌شود. در این مرحله، یک تخصیص بزرگ ممکن است دیگر امکان‌پذیر نباشد زیرا هیچ یک از چهار بلوک به اندازه کافی بزرگ نیست. با گذشت زمان، این روند ادامه می‌یابد و پشته- به بلوک‌های کوچک‌تر و کوچک‌تر تقسیم می‌شود. در برخی مواقع، پشته آن‌قدر تکه‌تکه می‌شود که حتی یک تخصیص با اندازه معمولی نیز با شکست مواجه می‌شود.
 
-
-To fix this problem, we need to merge adjacent freed blocks back together. For the above example, this would mean the following:
+برای رفع این مشکل، باید بلوک‌های آزاد شده مجاور را دوباره با هم ادغام کنیم. برای مثال بالا، این به معنی حالت زیر است:
 
 ![](linked-list-allocator-merge-on-dealloc.svg)
 
-مانند قبل، دو مورد از سه تخصیص در ردیف '2' آزاد می شود. به جای نگه داشتن پشته تکه تکه شده، اکنون یک مرحله اضافی در خط «2a» انجام می دهیم تا دو بلوک سمت راست را دوباره با هم ادغام کنیم. در خط «3»، تخصیص سوم آزاد می‌شود (مانند قبل)، و در نتیجه یک پشته کاملاً بدون استفاده به‌دست می‌آید که با سه بلوک مجزا نشان داده می‌شود. در یک مرحله ادغام اضافی در خط '3a'، سپس سه بلوک مجاور را دوباره با هم ادغام می کنیم.
-Like before, two of the three allocations are freed in line `2`. Instead of keeping the fragmented heap, we now perform an additional step in line `2a` to merge the two rightmost blocks back together. In line `3`, the third allocation is freed (like before), resulting in a completely unused heap represented by three distinct blocks. In an additional merging step in line `3a` we then merge the three adjacent blocks back together.
+مانند قبل، دو مورد از سه تخصیص در ردیف '2'  آزاد می‌شود. به‌جای نگه داشتن پشته- تکه‌تکه شده، اکنون یک مرحله اضافی در خط «2a» انجام می‌دهیم تا دو بلوک سمت راست را دوباره با هم ادغام کنیم. در خط «3»، تخصیص سوم آزاد می‌شود (مانند قبل)، و در نتیجه یک پشته- کاملاً بدون استفاده به‌دست می‌آید که با سه بلوک مجزا نشان داده می‌شود. در یک مرحله ادغام اضافی در خط '3a'، سپس سه بلوک مجاور را دوباره با هم ادغام می‌کنیم.
 
-جعبه `linked_list_allocator` این استراتژی ادغام را به روش زیر پیاده‌سازی می‌کند: به جای قرار دادن بلوک‌های حافظه آزاد شده در ابتدای فهرست پیوندی در «deallocate»، همیشه فهرست را مرتب‌شده بر اساس آدرس شروع نگه می‌دارد. به این ترتیب، ادغام می‌تواند مستقیماً در تماس «deallocate» با بررسی آدرس‌ها و اندازه‌های دو بلوک همسایه در لیست انجام شود. البته عملیات Delocation از این طریق کندتر است، اما از تکه تکه شدن پشته ای که در بالا دیدیم جلوگیری می کند.
-The `linked_list_allocator` crate implements this merging strategy in the following way: Instead of inserting freed memory blocks at the beginning of the linked list on `deallocate`, it always keeps the list sorted by start address. This way, merging can be performed directly on the `deallocate` call by examining the addresses and sizes of the two neighbor blocks in the list. Of course, the deallocation operation is slower this way, but it prevents the heap fragmentation we saw above.
+جعبه `linked_list_allocator` این استراتژی ادغام را به روش زیر پیاده‌سازی می‌کند: به جای قرار دادن بلوک‌های حافظه آزاد شده در ابتدای لیست پیوندی در «deallocate»، همیشه لیست را مرتب‌شده بر اساس آدرس شروع نگه می‌دارد. به این ترتیب، ادغام می‌تواند مستقیماً در فراخوانی «deallocate» با بررسی آدرس‌ها و اندازه‌های دو بلوک همسایه در لیست انجام شود. البته عملیات بازستانی تخصیص از این طریق کندتر است، اما از تکه‌تکه شدن هیپ همان‌طور که در بالا دیدیم جلوگیری می‌کند.
 
-#### Performance
+#### کارایی
 
-همانطور که در بالا آموختیم، تخصیص دهنده دست انداز بسیار سریع است و می تواند تنها برای چند عملیات مونتاژ بهینه شود. تخصیص دهنده لیست پیوندی در این دسته عملکرد بسیار بدتری دارد. مشکل این است که یک درخواست تخصیص ممکن است نیاز داشته باشد که لیست کامل پیوند شده را تا زمانی که یک بلوک مناسب پیدا کند، طی کند.
-As we learned above, the bump allocator is extremely fast and can be optimized to just a few assembly operations. The linked list allocator performs much worse in this category. The problem is that an allocation request might need to traverse the complete linked list until it finds a suitable block.
+همان‌طور که در بالا آموختیم، تخصیص‌دهنده بامپ بسیار سریع است و می‌تواند به شکلی بهینه شود که تنها چند عملیات اسمبلی باشد. تخصیص‌دهنده لیست پیوندی در این زمینه کارایی بسیار بدتری دارد. مشکل این است که یک درخواست تخصیص ممکن است نیاز داشته باشد که کل لیست پیوند شده را تا زمانی که یک بلوک مناسب پیدا کند، طی کند.
 
-از آنجایی که طول لیست به تعداد بلوک های حافظه استفاده نشده بستگی دارد، عملکرد می تواند برای برنامه های مختلف بسیار متفاوت باشد. برنامه ای که فقط چند تخصیص ایجاد می کند، عملکرد تخصیص نسبتاً سریعی را تجربه خواهد کرد. با این حال، برای برنامه‌ای که پشته را با تخصیص‌های زیاد تکه تکه می‌کند، عملکرد تخصیص بسیار بد خواهد بود زیرا لیست پیوند شده بسیار طولانی است و عمدتاً شامل بلوک‌های بسیار کوچک است.
-Since the list length depends on the number of unused memory blocks, the performance can vary extremely for different programs. A program that only creates a couple of allocations will experience a relatively fast allocation performance. For a program that fragments the heap with many allocations, however, the allocation performance will be very bad because the linked list will be very long and mostly contain very small blocks.
+از آن‌جایی که طول لیست به تعداد بلوک‌های حافظه استفاده نشده بستگی دارد، کارایی می‌تواند برای برنامه‌های مختلف بسیار متفاوت باشد. برنامه‌ای که فقط چند تخصیص ایجاد می‌کند، کارایی تخصیص نسبتاً سریعی را تجربه خواهد کرد. با این حال، برای برنامه‌ای که پشته- را با تخصیص‌های زیاد تکه‌تکه می‌کند، کارایی تخصیص بسیار بد خواهد بود زیرا لیست پیوند شده بسیار طولانی است و عمدتاً شامل بلوک‌های بسیار کوچک است.
 
-شایان ذکر است که این مشکل عملکرد یک مشکل ناشی از اجرای اولیه ما نیست، بلکه یک مشکل اساسی از رویکرد لیست پیوندی است. از آنجایی که عملکرد تخصیص می تواند برای کدهای سطح هسته بسیار مهم باشد، در ادامه طرح سومی را بررسی می کنیم که عملکرد بهبود یافته را با کاهش استفاده از حافظه مبادله می کند.
-It's worth noting that this performance issue isn't a problem caused by our basic implementation, but a fundamental problem of the linked list approach. Since allocation performance can be very important for kernel-level code, we explore a third allocator design in the following that trades improved performance for reduced memory utilization.
+شایان ذکر است که این مشکل کارایی یک مشکل ناشی از اجرای- اولیه ما نیست، بلکه یک مشکل اساسی از رویکرد لیست پیوندی است. از آن‌جایی که کارایی تخصیص می‌تواند برای کدهای سطح هسته بسیار مهم باشد، در ادامه طرح سومی را بررسی می‌کنیم که کارایی را بهبود داده اما باعث کاهش استفاده از حافظه می‌شود.
 
-## Fixed-Size Block Allocator
+## تخصیص‌دهنده با اندازه بلوک ثابت
 
-در ادامه، یک طراحی تخصیص دهنده ارائه می کنیم که از بلوک های حافظه با اندازه ثابت برای انجام درخواست های تخصیص استفاده می کند. به این ترتیب، تخصیص‌دهنده اغلب بلوک‌هایی را برمی‌گرداند که بزرگ‌تر از مقدار مورد نیاز برای تخصیص‌ها هستند، که منجر به هدر رفتن حافظه به دلیل [تقسیم‌بندی داخلی] می‌شود. از طرف دیگر، زمان مورد نیاز برای یافتن یک بلوک مناسب (در مقایسه با تخصیص دهنده لیست پیوندی) را به شدت کاهش می دهد و در نتیجه عملکرد تخصیص بسیار بهتری دارد.
-In the following, we present an allocator design that uses fixed-size memory blocks for fulfilling allocation requests. This way, the allocator often returns blocks that are larger than needed for allocations, which results in wasted memory due to [internal fragmentation]. On the other hand, it drastically reduces the time required to find a suitable block (compared to the linked list allocator), resulting in much better allocation performance.
+در ادامه، یک طراحی تخصیص دهنده ارائه می‌کنیم که از بلوک‌های حافظه با اندازه ثابت برای انجام درخواست‌های تخصیص استفاده می‌کند. به این ترتیب، تخصیص‌دهنده اغلب بلوک‌هایی را برمی‌گرداند که بزرگ‌تر از مقدار مورد نیاز برای تخصیص‌ها هستند، که منجر به هدر رفتن حافظه به دلیل [تکه‌تکه شدن داخلی] می‌شود. از طرف دیگر، زمان مورد نیاز برای یافتن یک بلوک مناسب (در مقایسه با تخصیص‌دهنده لیست پیوندی) را به شدت کاهش می‌دهد و در نتیجه کارایی تخصیص بسیار بهتری دارد.
 
-### Introduction
+### مقدمه
 
-ایده پشت یک _تخصیص کننده بلوک با اندازه ثابت_ به شرح زیر است: به جای تخصیص دقیقاً همان مقدار حافظه که درخواست شده است، تعداد کمی از اندازه های بلوک را تعریف می کنیم و هر تخصیص را به اندازه بلوک بعدی جمع می کنیم. به عنوان مثال، با اندازه بلوک های 16، 64 و 512 بایت، تخصیص 4 بایت یک بلوک 16 بایتی، تخصیص 48 بایت یک بلوک 64 بایتی و تخصیص 128 بایت یک بلوک 512 بایتی را برمی گرداند. .
-The idea behind a _fixed-size block allocator_ is the following: Instead of allocating exactly as much memory as requested, we define a small number of block sizes and round up each allocation to the next block size. For example, with block sizes of 16, 64, and 512 bytes, an allocation of 4 bytes would return a 16-byte block, an allocation of 48 bytes a 64-byte block, and an allocation of 128 bytes an 512-byte block.
+ایده پشت یک _تخصیص‌دهنده با اندازه بلوک ثابت_ به شرح زیر است: به جای تخصیص دقیقاً همان مقدار حافظه که درخواست شده است، تعداد کمی از اندازه‌های بلوک را تعریف می‌کنیم و هر تخصیص را به اندازه بلوک بعدی جمع می‌کنیم. به عنوان مثال، با اندازه بلوک‌های 16، 64 و 512 بایت، یک تخصیص 4 بایتی یک بلوک 16 بایتی را برمی‌گرداند، همین‌طور یک تخصیص 48 بایتی یک بلوک 64 بایتی را و یک تخصیص 128 بایتی یک بلوک 512 بایتی را برمی‌گرداند. .
 
-مانند تخصیص دهنده لیست پیوندی، ما با ایجاد یک لیست پیوندی در حافظه استفاده نشده، حافظه استفاده نشده را پیگیری می کنیم. با این حال، به جای استفاده از یک لیست واحد با اندازه بلوک های مختلف، یک لیست جداگانه برای هر کلاس اندازه ایجاد می کنیم. سپس هر لیست فقط بلوک های یک اندازه را ذخیره می کند. به عنوان مثال، با اندازه بلوک 16، 64، و 512 سه لیست پیوندی جداگانه در حافظه وجود دارد:
-Like the linked list allocator, we keep track of the unused memory by creating a linked list in the unused memory. However, instead of using a single list with different block sizes, we create a separate list for each size class. Each list then only stores blocks of a single size. For example, with block sizes 16, 64, and 512 there would be three separate linked lists in memory:
+مانند تخصیص‌دهنده لیست پیوندی، ما با ایجاد یک لیست پیوندی در حافظه استفاده نشده، حافظه استفاده نشده را پیگیری می‌کنیم. با این حال، به جای استفاده از یک لیست واحد با اندازه بلوک‌های مختلف، یک لیست جداگانه برای هر کلاس اندازه ایجاد می‌کنیم. سپس هر لیست فقط بلوک‌های اندازه مربوط به خودش را ذخیره می‌کند. به عنوان مثال، با اندازه‌های بلوک 16، 64، و 512، سه لیست پیوندی جداگانه در حافظه وجود خواهد داشت:
 
 ![](fixed-size-block-example.svg).
 
-به جای یک نشانگر «head»، سه نشانگر سر «head_16»، «head_64» و «head_512» داریم که هر کدام به اولین بلوک استفاده نشده با اندازه مربوطه اشاره می‌کنند. همه گره ها در یک لیست واحد اندازه یکسانی دارند. به عنوان مثال، فهرستی که با اشاره گر «head_16» شروع می شود، فقط شامل بلوک های 16 بایتی است. این بدان معنی است که ما دیگر نیازی به ذخیره اندازه در هر گره لیست نداریم زیرا قبلاً با نام اشاره گر سر مشخص شده است.
-Instead of a single `head` pointer, we have the three head pointers `head_16`, `head_64`, and `head_512` that each point to the first unused block of the corresponding size. All nodes in a single list have the same size. For example, the list started by the `head_16` pointer only contains 16-byte blocks. This means that we no longer need to store the size in each list node since it is already specified by the name of the head pointer.
+به جای یک نشانگر «head»، سه نشانگر هِد `head_64`، `head_16` و `head_512` داریم که هر کدام به اولین بلوک استفاده نشده با اندازه مربوطه اشاره می‌کنند. همه گره‌ها در یک لیست واحد اندازه یکسانی دارند. به عنوان مثال، فهرستی که با اشاره‌گر «head_16» شروع می‌شود، فقط شامل بلوک‌های 16 بایتی است. یعنی ما دیگر نیازی به ذخیره اندازه در هر گره لیست نداریم زیرا قبلاً با نام اشاره‌گر هد مشخص شده است.
 
-از آنجایی که هر عنصر در یک لیست اندازه یکسانی دارد، هر عنصر لیست به همان اندازه برای درخواست تخصیص مناسب است. این بدان معناست که ما می‌توانیم با استفاده از مراحل زیر یک تخصیص را بسیار کارآمد انجام دهیم:
-Since each element in a list has the same size, each list element is equally suitable for an allocation request. This means that we can very efficiently perform an allocation using the following steps:
+از آن‌جایی که هر عنصر در یک لیست اندازه یکسانی دارد، هر عنصر لیست به همان اندازه برای درخواست تخصیص مناسب است. یعنی ما می‌توانیم با استفاده از مراحل زیر یک تخصیص را بسیار کارآمد انجام دهیم:
 
-- اندازه تخصیص درخواستی را به اندازه بلوک بعدی گرد کنید. به عنوان مثال، زمانی که تخصیص 12 بایت درخواست می شود، اندازه بلوک 16 را در مثال بالا انتخاب می کنیم.
-- Round up the requested allocation size to the next block size. For example, when an allocation of 12 bytes is requested, we would choose the block size 16 in the above example.
-- نشانگر سر فهرست را بازیابی کنید، به عنوان مثال. از یک آرایه برای اندازه بلوک 16، باید از «head_16» استفاده کنیم.
-- Retrieve the head pointer for the list, e.g. from an array. For block size 16, we need to use `head_16`.
+- اندازه تخصیص درخواستی را به اندازه بلوک بعدی گرد کنید. به عنوان مثال، زمانی که تخصیص 12 بایتی درخواست می‌شود، اندازه بلوک 16 بایتی را انتخاب می‌کنیم.
+- نشانگر هد لیست را بازیابی کنید، به عنوان مثال، از یک آرایه. برای اندازه بلوک 16، باید از «head_16» استفاده کنیم.
 - اولین بلوک را از لیست حذف کرده و برگردانید.
-- Remove the first block from the list and return it.
 
-مهم‌تر از همه، ما همیشه می‌توانیم اولین عنصر لیست را برگردانیم و دیگر نیازی به عبور از فهرست کامل نداریم. بنابراین، تخصیص ها بسیار سریعتر از تخصیص دهنده لیست پیوندی است.
-Most notably, we can always return the first element of the list and no longer need to traverse the full list. Thus, allocations are much faster than with the linked list allocator.
+مهم‌تر از همه، ما همیشه می‌توانیم اولین عنصر لیست را برگردانیم و دیگر نیازی به طی کردن کل لیست نداریم. بنابراین، تخصیص‌ها بسیار سریعتر از تخصیص‌دهنده لیست پیوندی است.
 
-#### Block Sizes and Wasted Memory
+#### اندازه بلوک و حافظه هدر رفته
 
 Depending on the block sizes, we lose a lot of memory by rounding up. For example, when a 512-byte block is returned for a 128 byte allocation, three quarters of the allocated memory are unused. By defining reasonable block sizes, it is possible to limit the amount of wasted memory to some degree. For example, when using the powers of 2 (4, 8, 16, 32, 64, 128, …) as block sizes, we can limit the memory waste to half of the allocation size in the worst case and a quarter of the allocation size in the average case.
 
@@ -1227,7 +1210,7 @@ The advantage of this merge process is that [external fragmentation] is reduced 
 [buddy allocator]: https://en.wikipedia.org/wiki/Buddy_memory_allocation
 [binary tree]: https://en.wikipedia.org/wiki/Binary_tree
 [external fragmentation]: https://en.wikipedia.org/wiki/Fragmentation_(computing)#External_fragmentation
-[internal fragmentation]: https://en.wikipedia.org/wiki/Fragmentation_(computing)#Internal_fragmentation
+[تکه‌تکه شدن داخلی]: https://en.wikipedia.org/wiki/Fragmentation_(computing)#Internal_fragmentation
 
 
 ## Summary
