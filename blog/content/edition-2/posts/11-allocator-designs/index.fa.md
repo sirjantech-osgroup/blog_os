@@ -296,7 +296,7 @@ unsafe impl GlobalAlloc for Locked<BumpAllocator> {
 
 [`Mutex::lock`]: https://docs.rs/spin/0.5.0/spin/struct.Mutex.html#method.lock
 
-در مقایسه با نمونه اولیه قبلی، پیاده‌سازی «alloc» اکنون به الزامات هم‌ترازی احترام می‌گذارد و برای اطمینان از این‌که تخصیص‌ها در ناحیه حافظه هیپ باقی می‌مانند، یک بررسی کرانه‌ها (bounds check) انجام می‌دهد. اولین قدم گرد کردن آدرس «next» به تراز مشخص شده توسط آرگومان «Layout» است. کد تابع `align_up` بزودی نشان داده می شود. سپس اندازه تخصیص درخواستی را به `alloc_start` اضافه می‌کنیم تا آدرس پایانی تخصیص را بدست آوریم. برای جلوگیری از سرریز اعداد صحیح در تخصیص‌های بزرگ، از روش [`checked_add`] استفاده می‌کنیم. اگر سرریز اتفاق بیفتد یا اگر آدرس پایانی تخصیص از آدرس پایانی هیپ بزرگتر باشد، یک اشاره‌گر تهی برای سیگنال دادن به این‌که وضعیت out-of-memory رخ داده برمی‌گردانیم. در غیر این صورت، آدرس `next` را بروز می‌کنیم و شمارنده `allocations` را مانند قبل یک واحد افزایش می‌دهیم. در نهایت، آدرس «alloc_start» را که به اشاره‌گر «*mut u8» تبدیل شده است، برمی‌گردانیم.
+در مقایسه با نمونه اولیه قبلی، پیاده‌سازی «alloc» اکنون به الزامات هم‌ترازی احترام می‌گذارد و برای اطمینان از این‌که تخصیص‌ها در ناحیه حافظه هیپ باقی می‌مانند، یک بررسی کرانه‌ها (bounds check) انجام می‌دهد. اولین قدم گرد کردن آدرس «next» به تراز مشخص شده توسط آرگومان «Layout» است. کد تابع `align_up` به‌زودی نشان داده می شود. سپس اندازه تخصیص درخواستی را به `alloc_start` اضافه می‌کنیم تا آدرس پایانی تخصیص را بدست آوریم. برای جلوگیری از سرریز اعداد صحیح در تخصیص‌های بزرگ، از روش [`checked_add`] استفاده می‌کنیم. اگر سرریز اتفاق بیفتد یا اگر آدرس پایانی تخصیص از آدرس پایانی هیپ بزرگتر باشد، یک اشاره‌گر تهی برای سیگنال دادن به این‌که وضعیت out-of-memory رخ داده برمی‌گردانیم. در غیر این صورت، آدرس `next` را بروز می‌کنیم و شمارنده `allocations` را مانند قبل یک واحد افزایش می‌دهیم. در نهایت، آدرس «alloc_start» را که به اشاره‌گر «*mut u8» تبدیل شده است، برمی‌گردانیم.
 
 [`checked_add`]: https://doc.rust-lang.org/std/primitive.usize.html#method.checked_add
 [`Layout`]: https://doc.rust-lang.org/alloc/alloc/struct.Layout.html
@@ -353,7 +353,7 @@ fn align_up(addr: usize, align: usize) -> usize {
 
 ### استفاده کردن از آن
 
-برای استفاده از تخصیص‌دهنده بامپ بجای جعبه «linked_list_allocator»، باید استاتیک «ALLOCATOR» را در «allocator.rs» بروزرسانی کنیم:
+برای استفاده از تخصیص‌دهنده بامپ بجای جعبه «linked_list_allocator»، باید استاتیک «ALLOCATOR» را در «allocator.rs» به‌روزرسانی کنیم:
 
 ```rust
 // in src/allocator.rs
@@ -434,7 +434,7 @@ Error: panicked at 'allocation error: Layout { size_: 8, align_: 8 }', src/lib.r
 
 دو ترفند بالقوه وجود دارد که می‌توانیم از آن‌ها برای اصلاح تست تخصیص‌دهنده بامپ استفاده کنیم:
 
-- می‌توانیم «dealloc» را بروزرسانی کنیم تا بررسی کنیم که آیا تخصیص آزاد شده آخرین تخصیصی است که «alloc» با مقایسه آدرس پایانی آن با اشاره‌گر «بعدی» بازگردانده است. در صورت مساوی بودن، می‌توانیم با خیال راحت «next» را به آدرس شروع تخصیص آزاد شده بازنشانی کنیم. به این ترتیب، هر تکرار حلقه از همان بلوک حافظه مجدداً استفاده می‌کند.
+- می‌توانیم «dealloc» را به‌روزرسانی کنیم تا بررسی کنیم که آیا تخصیص آزاد شده آخرین تخصیصی است که «alloc» با مقایسه آدرس پایانی آن با اشاره‌گر «بعدی» بازگردانده است. در صورت مساوی بودن، می‌توانیم با خیال راحت «next» را به آدرس شروع تخصیص آزاد شده بازنشانی کنیم. به این ترتیب، هر تکرار حلقه از همان بلوک حافظه مجدداً استفاده می‌کند.
 - می‌توانیم یک متد «alloc_back» اضافه کنیم که با استفاده از یک فیلد اضافی «next_back»، حافظه را از _انتهای_ هیپ تخصیص دهد. سپس می‌توانیم به‌صورت دستی از این متد تخصیص برای همه تخصیص‌های طولانی‌مدت استفاده کنیم و بدین ترتیب تخصیص‌های کوتاه‌مدت و طولانی‌مدت را در هیپ جدا کنیم. توجه داشته باشید که این جداسازی تنها در صورتی کار می‌کند که از قبل مشخص شده باشد که هر تخصیص چقدر طول می‌کشد. یکی دیگر از اشکالات این رویکرد این است که انجام دستی تخصیص‌ها دست و پا گیر و به طور بالقوه ناامن است.
 
 در حالی که هر دوی این رویکردها برای اصلاح تست کار می‌کنند، اما راه حل کلی نیستند زیرا فقط در موارد بسیار خاص قادر به استفاده مجدد از حافظه هستند. سوال این است: آیا راه حل کلی برای استفاده مجدد از _تمام_ حافظه آزاد شده وجود دارد؟
@@ -558,7 +558,7 @@ impl LinkedListAllocator {
 
 [`const` function]: https://doc.rust-lang.org/reference/items/functions.html#const-functions
 
-متد «init» از روش- «add_free_region» استفاده می‌کند که پیاده‌سازی آن بزودی نشان داده می‌شود. در حال حاضر، ما از ماکرو ['todo!'] برای ارائه یک نگهدارنده مکان که همیشه پنیک زده می‌کند استفاده می‌کنیم.
+متد «init» از روش- «add_free_region» استفاده می‌کند که پیاده‌سازی آن به‌زودی نشان داده می‌شود. در حال حاضر، ما از ماکرو ['todo!'] برای ارائه یک نگهدارنده مکان که همیشه پنیک زده می‌کند استفاده می‌کنیم.
 
 [`todo!`]: https://doc.rust-lang.org/core/macro.todo.html
 
@@ -603,9 +603,9 @@ impl LinkedListAllocator {
 
 [`write`]: https://doc.rust-lang.org/std/primitive.pointer.html#method.write
 
-#### The `find_region` Method
+#### متد `find_region`
 
-The second fundamental operation on a linked list is finding an entry and removing it from the list. This is the central operation needed for implementing the `alloc` method. We implement the operation as a `find_region` method in the following way:
+دومین عملیات اساسی در یک لیست پیوندی یافتن یک ورودی و حذف آن از لیست است. این عملیات مرکزی مورد نیاز برای اجرای- روش- «alloc» است. ما این عملیات را به عنوان متد «find_region» به شیوه زیر پیاده‌سازی می‌کنیم:
 
 ```rust
 // in src/allocator/linked_list.rs
@@ -640,23 +640,23 @@ impl LinkedListAllocator {
 }
 ```
 
-The method uses a `current` variable and a [`while let` loop] to iterate over the list elements. At the beginning, `current` is set to the (dummy) `head` node. On each iteration, it is then updated to the `next` field of the current node (in the `else` block). If the region is suitable for an allocation with the given size and alignment, the region is removed from the list and returned together with the `alloc_start` address.
+این روش- از یک متغیر `current` و یک حلقه [`while let`] برای تکرار بر روی عناصر لیست استفاده می‌کند. در ابتدا، «current» روی گره «head» (ساختگی) تنظیم شده است. در هر تکرار، سپس به فیلد «next» گره فعلی (در بلوک «else») به‌روزرسانی می‌شود. اگر منطقه برای تخصیص با اندازه و تراز داده شده مناسب باشد، منطقه از لیست حذف شده و همراه با آدرس 'alloc_start' برگردانده می‌شود.
 
 [`while let` loop]: https://doc.rust-lang.org/reference/expressions/loop-expr.html#predicate-pattern-loops
 
-When the `current.next` pointer becomes `None`, the loop exits. This means that we iterated over the whole list but found no region that is suitable for an allocation. In that case, we return `None`. The check whether a region is suitable is done by a `alloc_from_region` function, whose implementation will be shown in a moment.
+وقتی نشانگر «current.next» به «None» برسد، حلقه خارج می‌شود. این بدان معنی است که ما کل لیست را پیمایش کردیم اما هیچ منطقه‌ای را پیدا نکردیم که برای تخصیص مناسب باشد. در آن صورت، «None» را برمی‌گردانیم. برای بررسی این‌که یک منطقه مناسب است یا خیر، از تابع «alloc_from_region» استفاده می‌شود که اجرای آن به‌زودی نشان داده می‌شود.
 
-Let's take a more detailed look at how a suitable region is removed from the list:
+بیایید نگاهی دقیق‌تر به نحوه حذف یک منطقه مناسب از لیست بیندازیم:
 
 ![](linked-list-allocator-remove-region.svg)
 
-Step 0 shows the situation before any pointer adjustments. The `region` and `current` regions and the `region.next` and `current.next` pointers are marked in the graphic. In step 1, both the `region.next` and `current.next` pointers are reset to `None` by using the [`Option::take`] method. The original pointers are stored in local variables called `next` and `ret`.
+مرحله 0 وضعیت را قبل از هر تنظیم نشانگر نشان می‌دهد. مناطق «region» و «current» و نشانگرهای «region.next» و «current.next» در تصویر مشخص شده‌اند. در مرحله 1، هر دو نشانگر 'region.next' و 'current.next' با استفاده از روش- ['Option::take'] به 'None' بازنشانی می‌شوند. اشاره‌گرهای اصلی در متغیرهای محلی به نام «next» و «ret» ذخیره می‌شوند.
 
-In step 2, the `current.next` pointer is set to the local `next` pointer, which is the original `region.next` pointer. The effect is that `current` now directly points to the region after `region`, so that `region` is no longer element of the linked list. The function then returns the pointer to `region` stored in the local `ret` variable.
+در مرحله 2، نشانگر «current.next» روی نشانگر محلی «next» تنظیم می‌شود که نشانگر «region.next» اصلی است. اثر این است که «current» اکنون مستقیماً به منطقه بعد از «region» اشاره می‌کند، بنابراین «region» دیگر عنصری از لیست پیوندی نیست. سپس این تابع نشانگر را به 'region' ذخیره شده در متغیر محلی 'ret' برمی‌گرداند.
 
-##### The `alloc_from_region` Function
+##### تابع `alloc_from_region`
 
-The `alloc_from_region` function returns whether a region is suitable for an allocation with given size and alignment. It is defined like this:
+تابع 'alloc_from_region' نشان می‌دهد که آیا یک منطقه برای تخصیص با اندازه و تراز مشخص مناسب است یا خیر. این‌گونه تعریف می‌شود:
 
 ```rust
 // in src/allocator/linked_list.rs
@@ -690,17 +690,17 @@ impl LinkedListAllocator {
 }
 ```
 
-First, the function calculates the start and end address of a potential allocation, using the `align_up` function we defined earlier and the [`checked_add`] method. If an overflow occurs or if the end address is behind the end address of the region, the allocation doesn't fit in the region and we return an error.
+ابتدا، تابع آدرس شروع و پایان یک تخصیص بالقوه را با استفاده از تابع 'align_up' که قبلا تعریف کردیم و روش- ['checked_add'] محاسبه می‌کند. اگر سرریز اتفاق بیفتد یا اگر آدرس انتهایی عقب‌تر از آدرس انتهای منطقه باشد، تخصیص در منطقه جا نمی‌شود و یک خطا برمی‌گردانیم.
 
-The function performs a less obvious check after that. This check is necessary because most of the time an allocation does not fit a suitable region perfectly, so that a part of the region remains usable after the allocation. This part of the region must store its own `ListNode` after the allocation, so it must be large enough to do so. The check verifies exactly that: either the allocation fits perfectly (`excess_size == 0`) or the excess size is large enough to store a `ListNode`.
+این تابع پس از آن بررسی‌ای که کمتر واضح است را انجام می‌دهد. این بررسی ضروری است زیرا در اکثر مواقع یک تخصیص با یک منطقه مناسب مطابقت کامل ندارد، به طوری که بخشی از منطقه پس از تخصیص قابل استفاده باقی می‌ماند. این قسمت از منطقه باید «ListNode» خود را پس از تخصیص ذخیره کند، بنابراین باید برای انجام این کار به اندازه کافی بزرگ باشد. بررسی دقیقاً آن را تأیید می‌کند: یا تخصیص کاملاً متناسب است (`excess_size == 0`) یا اندازه اضافی به اندازه‌ای بزرگ است که یک «ListNode» را ذخیره کند.
 
-#### Implementing `GlobalAlloc`
+#### پیاده‌سازی `GlobalAlloc`
 
-With the fundamental operations provided by the `add_free_region` and `find_region` methods, we can now finally implement the `GlobalAlloc` trait. As with the bump allocator, we don't implement the trait directly for the `LinkedListAllocator`, but only for a wrapped `Locked<LinkedListAllocator>`. The [`Locked` wrapper] adds interior mutability through a spinlock, which allows us to modify the allocator instance even though the `alloc` and `dealloc` methods only take `&self` references.
+با عملیات اساسی ارائه شده توسط روش-های «add_free_region» و «find_region»، اکنون می‌توانیم صفت «GlobalAlloc» را پیاده‌سازی کنیم. مانند تخصیص‌دهنده بامپ، ما این صفت را مستقیماً برای 'LinkedListAllocator' پیاده‌سازی نمی‌کنیم، بلکه فقط برای یک 'Locked<LinkedListAllocator>' بسته‌بندی شده است. [بسته‌بندی 'Locked'] تغییرپذیری داخلی را از طریق یک قفل چرخشی اضافه می‌کند، که به ما امکان می‌دهد نمونه تخصیص‌دهنده را تغییر دهیم حتی اگر متدهای 'alloc' و 'dealloc' فقط ارجاعات '&self' را دریافت کنند.
 
-[`Locked` wrapper]: @/edition-2/posts/11-allocator-designs/index.md#a-locked-wrapper-type
+[بسته‌بندی 'Locked']: @/edition-2/posts/11-allocator-designs/index.md#a-locked-wrapper-type
 
-The implementation looks like this:
+پیاده‌سازی به شکل زیر است:
 
 ```rust
 // in src/allocator/linked_list.rs
@@ -736,17 +736,17 @@ unsafe impl GlobalAlloc for Locked<LinkedListAllocator> {
 }
 ```
 
-Let's start with the `dealloc` method because it is simpler: First, it performs some layout adjustments, which we will explain in a moment, and retrieves a `&mut LinkedListAllocator` reference by calling the [`Mutex::lock`] function on the [`Locked` wrapper]. Then it calls the `add_free_region` function to add the deallocated region to the free list.
+بیایید با روش «dealloc» شروع کنیم زیرا ساده‌تر است: ابتدا، برخی از تنظیمات چیدمان را انجام می‌دهد که به‌زودی توضیح خواهیم داد، و با فراخوانی تابع ['Mutex::lock'] روی [بسته‌بندی 'Locked'] مرجع «&mut LinkedListAllocator» را بازیابی می‌کند. سپس تابع `add_free_region` را فراخوانی می‌کند تا منطقه اختصاص داده شده را به لیست آزاد اضافه کند.
 
-The `alloc` method is a bit more complex. It starts with the same layout adjustments and also calls the [`Mutex::lock`] function to receive a mutable allocator reference. Then it uses the `find_region` method to find a suitable memory region for the allocation and remove it from the list. If this doesn't succeed and `None` is returned, it returns `null_mut` to signal an error as there is no suitable memory region.
+روش- `alloc` کمی پیچیده‌تر است. با همان تنظیمات چیدمان شروع می‌شود و همچنین تابع ['Mutex::lock'] را برای دریافت یک مرجع تخصیص‌دهنده تغییرپذیر فراخوانی می‌کند. سپس از روش- `find_region` برای یافتن یک منطقه حافظه مناسب برای تخصیص و حذف آن از لیست استفاده می‌کند. اگر این کار موفق نشد و «None» برگردانده شد، «null_mut» را برمی‌گرداند تا خطایی را نشان دهد زیرا منطقه حافظه مناسبی وجود ندارد.
 
-In the success case, the `find_region` method returns a tuple of the suitable region (no longer in the list) and the start address of the allocation. Using `alloc_start`, the allocation size, and the end address of the region, it calculates the end address of the allocation and the excess size again. If the excess size is not null, it calls `add_free_region` to add the excess size of the memory region back to the free list. Finally, it returns the `alloc_start` address casted as a `*mut u8` pointer.
+در صورت موفقیت، متد «find_region» چندین منطقه مناسب (که دیگر در لیست نیست) و آدرس شروع تخصیص را برمی‌گرداند. با استفاده از 'alloc_start'، اندازه تخصیص و آدرس پایان منطقه، آدرس پایان تخصیص و اندازه اضافی را دوباره محاسبه می‌کند. اگر اندازه اضافی تهی نباشد، «add_free_region» را فراخوانی می‌کند تا اندازه اضافی منطقه حافظه را دوباره به لیست آزاد اضافه کند. در نهایت، آدرس «alloc_start» را که به عنوان نشانگر «*mut u8» فرستاده شده است، برمی‌گرداند.
 
-#### Layout Adjustments
+#### تنظیمات چیدمان
 
-So what are these layout adjustments that we do at the beginning of both `alloc` and `dealloc`? They ensure that each allocated block is capable of storing a `ListNode`. This is important because the memory block is going to be deallocated at some point, where we want to write a `ListNode` to it. If the block is smaller than a `ListNode` or does not have the correct alignment, undefined behavior can occur.
+بنابراین این تنظیمات چیدمان که در ابتدای «alloc» و «dealloc» انجام می‌دهیم چیست؟ آن‌ها اطمینان حاصل می‌کنند که هر بلوک تخصیص یافته قادر به ذخیره `ListNode` است. این مهم است زیرا بلوک حافظه قرار است در نقطه‌ای بازستانی تخصیص (deallocate) شود، جایی که می‌خواهیم یک «ListNode» روی آن بنویسیم. اگر بلوک کوچک‌تر از «ListNode» باشد یا تراز درستی نداشته باشد، رفتار نامشخصی ممکن است رخ دهد.
 
-The layout adjustments are performed by a `size_align` function, which is defined like this:
+تنظیمات چیدمان توسط یک تابع `size_align` انجام می‌شود که به صورت زیر تعریف می‌شود:
 
 ```rust
 // in src/allocator/linked_list.rs
@@ -767,16 +767,16 @@ impl LinkedListAllocator {
 }
 ```
 
-First, the function uses the [`align_to`] method on the passed [`Layout`] to increase the alignment to the alignment of a `ListNode` if necessary. It then uses the [`pad_to_align`] method to round up the size to a multiple of the alignment to ensure that the start address of the next memory block will have the correct alignment for storing a `ListNode` too.
-In the second step it uses the [`max`] method to enforce a minimum allocation size of `mem::size_of::<ListNode>`. This way, the `dealloc` function can safely write a `ListNode` to the freed memory block.
+ابتدا، این تابع از روش- [`align_to`] در [`Layout`] استفاده می‌کند تا در صورت لزوم، تراز را به تراز یک «ListNode» افزایش دهد. سپس از روش- ['pad_to_align'] برای گرد کردن اندازه به مضربی از تراز استفاده می‌کند تا اطمینان حاصل شود که آدرس شروع بلوک حافظه بعدی هم تراز درستی برای ذخیره یک `ListNode` خواهد داشت.
+در مرحله دوم از روش- [`max`] برای اعمال حداقل اندازه تخصیص `mem::size_of::<ListNode>` استفاده می‌کند. به این ترتیب، تابع `dealloc` می‌تواند با خیال راحت یک `ListNode` در بلوک حافظه آزاد شده بنویسد.
 
 [`align_to`]: https://doc.rust-lang.org/core/alloc/struct.Layout.html#method.align_to
 [`pad_to_align`]: https://doc.rust-lang.org/core/alloc/struct.Layout.html#method.pad_to_align
 [`max`]: https://doc.rust-lang.org/std/cmp/trait.Ord.html#method.max
 
-### Using it
+### استفاده از آن
 
-We can now update the `ALLOCATOR` static in the `allocator` module to use our new `LinkedListAllocator`:
+اکنون می‌توانیم استاتیک «ALLOCATOR» را در ماژول «allocator» به‌روزرسانی کنیم تا از «LinkedListAllocator» جدید خود استفاده کنیم:
 
 ```rust
 // in src/allocator.rs
@@ -788,9 +788,9 @@ static ALLOCATOR: Locked<LinkedListAllocator> =
     Locked::new(LinkedListAllocator::new());
 ```
 
-Since the `init` function behaves the same for the bump and linked list allocators, we don't need to modify the `init` call in `init_heap`.
+از آن‌جایی که تابع «init» برای تخصیص‌دهنده‌های بامپ و لیست پیوندی یکسان عمل می‌کند، نیازی به تغییر فراخوان «init» در «init_heap» نداریم.
 
-When we now run our `heap_allocation` tests again, we see that all tests pass now, including the `many_boxes_long_lived` test that failed with the bump allocator:
+وقتی اکنون تست‌های «heap_allocation» خود را اجرا می‌کنیم، می‌بینیم که همه تست‌ها، از جمله تست «many_boxes_long_lived» که با تخصیص‌دهنده بامپ ناموفق بود، اکنون با موفقیت انجام می‌شود:
 
 ```
 > cargo test --test heap_allocation
@@ -800,56 +800,73 @@ many_boxes... [ok]
 many_boxes_long_lived... [ok]
 ```
 
-This shows that our linked list allocator is able to reuse freed memory for subsequent allocations.
+این نشان می‌دهد که تخصیص‌دهنده لیست پیوندی ما می‌تواند از حافظه آزاد شده برای تخصیص‌های بعدی مجددا استفاده کند.
 
-### Discussion
+### گفتگو
 
-In contrast to the bump allocator, the linked list allocator is much more suitable as a general purpose allocator, mainly because it is able to directly reuse freed memory. However, it also has some drawbacks. Some of them are only caused by our basic implementation, but there are also fundamental drawbacks of the allocator design itself.
+بر خلاف تخصیص‌دهنده بامپ، تخصیص‌دهنده لیست پیوندی به عنوان یک تخصیص‌دهنده هدف عمومی بسیار مناسب‌تر است، عمدتاً به این دلیل که قادر به استفاده مجدد مستقیم از حافظه آزاد شده است. با این حال، معایبی نیز دارد. برخی از آن‌ها فقط ناشی از اجرای- پایه ما هستند، اما اشکالات اساسی در طراحی تخصیص‌دهنده نیز وجود دارد.
 
 #### Merging Freed Blocks
 
+مشکل اصلی پیاده سازی ما این است که فقط پشته را به بلوک های کوچکتر تقسیم می کند، اما هرگز آنها را دوباره با هم ادغام نمی کند. این مثال را در نظر بگیرید:
 The main problem of our implementation is that it only splits the heap into smaller blocks, but never merges them back together. Consider this example:
 
 ![](linked-list-allocator-fragmentation-on-dealloc.svg)
 
+در خط اول، سه تخصیص روی پشته ایجاد می شود. دو تا از آنها دوباره در خط 2 و سومی در خط 3 آزاد می شوند. اکنون پشته کامل دوباره استفاده نشده است، اما همچنان به چهار بلوک جداگانه تقسیم می شود. در این مرحله، تخصیص بزرگ ممکن است دیگر امکان پذیر نباشد زیرا هیچ یک از چهار بلوک به اندازه کافی بزرگ نیست. با گذشت زمان، این روند ادامه می یابد و پشته به بلوک های کوچکتر و کوچکتر تقسیم می شود. در برخی مواقع، پشته آنقدر تکه تکه می شود که حتی تخصیص اندازه معمولی نیز با شکست مواجه می شود.
 In the first line, three allocations are created on the heap. Two of them are freed again in line 2 and the third is freed in line 3. Now the complete heap is unused again, but it is still split into four individual blocks. At this point, a large allocation might not be possible anymore because none of the four blocks is large enough. Over time, the process continues and the heap is split into smaller and smaller blocks. At some point, the heap is so fragmented that even normal sized allocations will fail.
+
 
 To fix this problem, we need to merge adjacent freed blocks back together. For the above example, this would mean the following:
 
 ![](linked-list-allocator-merge-on-dealloc.svg)
 
+مانند قبل، دو مورد از سه تخصیص در ردیف '2' آزاد می شود. به جای نگه داشتن پشته تکه تکه شده، اکنون یک مرحله اضافی در خط «2a» انجام می دهیم تا دو بلوک سمت راست را دوباره با هم ادغام کنیم. در خط «3»، تخصیص سوم آزاد می‌شود (مانند قبل)، و در نتیجه یک پشته کاملاً بدون استفاده به‌دست می‌آید که با سه بلوک مجزا نشان داده می‌شود. در یک مرحله ادغام اضافی در خط '3a'، سپس سه بلوک مجاور را دوباره با هم ادغام می کنیم.
 Like before, two of the three allocations are freed in line `2`. Instead of keeping the fragmented heap, we now perform an additional step in line `2a` to merge the two rightmost blocks back together. In line `3`, the third allocation is freed (like before), resulting in a completely unused heap represented by three distinct blocks. In an additional merging step in line `3a` we then merge the three adjacent blocks back together.
 
+جعبه `linked_list_allocator` این استراتژی ادغام را به روش زیر پیاده‌سازی می‌کند: به جای قرار دادن بلوک‌های حافظه آزاد شده در ابتدای فهرست پیوندی در «deallocate»، همیشه فهرست را مرتب‌شده بر اساس آدرس شروع نگه می‌دارد. به این ترتیب، ادغام می‌تواند مستقیماً در تماس «deallocate» با بررسی آدرس‌ها و اندازه‌های دو بلوک همسایه در لیست انجام شود. البته عملیات Delocation از این طریق کندتر است، اما از تکه تکه شدن پشته ای که در بالا دیدیم جلوگیری می کند.
 The `linked_list_allocator` crate implements this merging strategy in the following way: Instead of inserting freed memory blocks at the beginning of the linked list on `deallocate`, it always keeps the list sorted by start address. This way, merging can be performed directly on the `deallocate` call by examining the addresses and sizes of the two neighbor blocks in the list. Of course, the deallocation operation is slower this way, but it prevents the heap fragmentation we saw above.
 
 #### Performance
 
+همانطور که در بالا آموختیم، تخصیص دهنده دست انداز بسیار سریع است و می تواند تنها برای چند عملیات مونتاژ بهینه شود. تخصیص دهنده لیست پیوندی در این دسته عملکرد بسیار بدتری دارد. مشکل این است که یک درخواست تخصیص ممکن است نیاز داشته باشد که لیست کامل پیوند شده را تا زمانی که یک بلوک مناسب پیدا کند، طی کند.
 As we learned above, the bump allocator is extremely fast and can be optimized to just a few assembly operations. The linked list allocator performs much worse in this category. The problem is that an allocation request might need to traverse the complete linked list until it finds a suitable block.
 
+از آنجایی که طول لیست به تعداد بلوک های حافظه استفاده نشده بستگی دارد، عملکرد می تواند برای برنامه های مختلف بسیار متفاوت باشد. برنامه ای که فقط چند تخصیص ایجاد می کند، عملکرد تخصیص نسبتاً سریعی را تجربه خواهد کرد. با این حال، برای برنامه‌ای که پشته را با تخصیص‌های زیاد تکه تکه می‌کند، عملکرد تخصیص بسیار بد خواهد بود زیرا لیست پیوند شده بسیار طولانی است و عمدتاً شامل بلوک‌های بسیار کوچک است.
 Since the list length depends on the number of unused memory blocks, the performance can vary extremely for different programs. A program that only creates a couple of allocations will experience a relatively fast allocation performance. For a program that fragments the heap with many allocations, however, the allocation performance will be very bad because the linked list will be very long and mostly contain very small blocks.
 
+شایان ذکر است که این مشکل عملکرد یک مشکل ناشی از اجرای اولیه ما نیست، بلکه یک مشکل اساسی از رویکرد لیست پیوندی است. از آنجایی که عملکرد تخصیص می تواند برای کدهای سطح هسته بسیار مهم باشد، در ادامه طرح سومی را بررسی می کنیم که عملکرد بهبود یافته را با کاهش استفاده از حافظه مبادله می کند.
 It's worth noting that this performance issue isn't a problem caused by our basic implementation, but a fundamental problem of the linked list approach. Since allocation performance can be very important for kernel-level code, we explore a third allocator design in the following that trades improved performance for reduced memory utilization.
 
 ## Fixed-Size Block Allocator
 
+در ادامه، یک طراحی تخصیص دهنده ارائه می کنیم که از بلوک های حافظه با اندازه ثابت برای انجام درخواست های تخصیص استفاده می کند. به این ترتیب، تخصیص‌دهنده اغلب بلوک‌هایی را برمی‌گرداند که بزرگ‌تر از مقدار مورد نیاز برای تخصیص‌ها هستند، که منجر به هدر رفتن حافظه به دلیل [تقسیم‌بندی داخلی] می‌شود. از طرف دیگر، زمان مورد نیاز برای یافتن یک بلوک مناسب (در مقایسه با تخصیص دهنده لیست پیوندی) را به شدت کاهش می دهد و در نتیجه عملکرد تخصیص بسیار بهتری دارد.
 In the following, we present an allocator design that uses fixed-size memory blocks for fulfilling allocation requests. This way, the allocator often returns blocks that are larger than needed for allocations, which results in wasted memory due to [internal fragmentation]. On the other hand, it drastically reduces the time required to find a suitable block (compared to the linked list allocator), resulting in much better allocation performance.
 
 ### Introduction
 
+ایده پشت یک _تخصیص کننده بلوک با اندازه ثابت_ به شرح زیر است: به جای تخصیص دقیقاً همان مقدار حافظه که درخواست شده است، تعداد کمی از اندازه های بلوک را تعریف می کنیم و هر تخصیص را به اندازه بلوک بعدی جمع می کنیم. به عنوان مثال، با اندازه بلوک های 16، 64 و 512 بایت، تخصیص 4 بایت یک بلوک 16 بایتی، تخصیص 48 بایت یک بلوک 64 بایتی و تخصیص 128 بایت یک بلوک 512 بایتی را برمی گرداند. .
 The idea behind a _fixed-size block allocator_ is the following: Instead of allocating exactly as much memory as requested, we define a small number of block sizes and round up each allocation to the next block size. For example, with block sizes of 16, 64, and 512 bytes, an allocation of 4 bytes would return a 16-byte block, an allocation of 48 bytes a 64-byte block, and an allocation of 128 bytes an 512-byte block.
 
+مانند تخصیص دهنده لیست پیوندی، ما با ایجاد یک لیست پیوندی در حافظه استفاده نشده، حافظه استفاده نشده را پیگیری می کنیم. با این حال، به جای استفاده از یک لیست واحد با اندازه بلوک های مختلف، یک لیست جداگانه برای هر کلاس اندازه ایجاد می کنیم. سپس هر لیست فقط بلوک های یک اندازه را ذخیره می کند. به عنوان مثال، با اندازه بلوک 16، 64، و 512 سه لیست پیوندی جداگانه در حافظه وجود دارد:
 Like the linked list allocator, we keep track of the unused memory by creating a linked list in the unused memory. However, instead of using a single list with different block sizes, we create a separate list for each size class. Each list then only stores blocks of a single size. For example, with block sizes 16, 64, and 512 there would be three separate linked lists in memory:
 
 ![](fixed-size-block-example.svg).
 
+به جای یک نشانگر «head»، سه نشانگر سر «head_16»، «head_64» و «head_512» داریم که هر کدام به اولین بلوک استفاده نشده با اندازه مربوطه اشاره می‌کنند. همه گره ها در یک لیست واحد اندازه یکسانی دارند. به عنوان مثال، فهرستی که با اشاره گر «head_16» شروع می شود، فقط شامل بلوک های 16 بایتی است. این بدان معنی است که ما دیگر نیازی به ذخیره اندازه در هر گره لیست نداریم زیرا قبلاً با نام اشاره گر سر مشخص شده است.
 Instead of a single `head` pointer, we have the three head pointers `head_16`, `head_64`, and `head_512` that each point to the first unused block of the corresponding size. All nodes in a single list have the same size. For example, the list started by the `head_16` pointer only contains 16-byte blocks. This means that we no longer need to store the size in each list node since it is already specified by the name of the head pointer.
 
+از آنجایی که هر عنصر در یک لیست اندازه یکسانی دارد، هر عنصر لیست به همان اندازه برای درخواست تخصیص مناسب است. این بدان معناست که ما می‌توانیم با استفاده از مراحل زیر یک تخصیص را بسیار کارآمد انجام دهیم:
 Since each element in a list has the same size, each list element is equally suitable for an allocation request. This means that we can very efficiently perform an allocation using the following steps:
 
+- اندازه تخصیص درخواستی را به اندازه بلوک بعدی گرد کنید. به عنوان مثال، زمانی که تخصیص 12 بایت درخواست می شود، اندازه بلوک 16 را در مثال بالا انتخاب می کنیم.
 - Round up the requested allocation size to the next block size. For example, when an allocation of 12 bytes is requested, we would choose the block size 16 in the above example.
+- نشانگر سر فهرست را بازیابی کنید، به عنوان مثال. از یک آرایه برای اندازه بلوک 16، باید از «head_16» استفاده کنیم.
 - Retrieve the head pointer for the list, e.g. from an array. For block size 16, we need to use `head_16`.
+- اولین بلوک را از لیست حذف کرده و برگردانید.
 - Remove the first block from the list and return it.
 
+مهم‌تر از همه، ما همیشه می‌توانیم اولین عنصر لیست را برگردانیم و دیگر نیازی به عبور از فهرست کامل نداریم. بنابراین، تخصیص ها بسیار سریعتر از تخصیص دهنده لیست پیوندی است.
 Most notably, we can always return the first element of the list and no longer need to traverse the full list. Thus, allocations are much faster than with the linked list allocator.
 
 #### Block Sizes and Wasted Memory
