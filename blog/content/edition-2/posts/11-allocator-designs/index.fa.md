@@ -854,40 +854,40 @@ many_boxes_long_lived... [ok]
 
 #### اندازه بلوک و حافظه هدر رفته
 
-Depending on the block sizes, we lose a lot of memory by rounding up. For example, when a 512-byte block is returned for a 128 byte allocation, three quarters of the allocated memory are unused. By defining reasonable block sizes, it is possible to limit the amount of wasted memory to some degree. For example, when using the powers of 2 (4, 8, 16, 32, 64, 128, …) as block sizes, we can limit the memory waste to half of the allocation size in the worst case and a quarter of the allocation size in the average case.
+بسته به اندازه بلوک‌ها، با گرد کردن به سمت بالا، حافظه زیادی را از دست می‌دهیم. به عنوان مثال، هنگامی که یک بلوک 512 بایتی برای یک تخصیص 128 بایتی برگردانده می‌شود، سه چهارم حافظه تخصیص یافته استفاده نمی‌شود. با تعریف اندازه بلوک‌های معقول، می‌توان مقدار حافظه تلف شده را تا حدی محدود کرد. به عنوان مثال، هنگام استفاده از توان‌های 2 (4، 8، 16، 32، 64، 128، ...) به عنوان اندازه بلوک، می‌توانیم اتلاف حافظه را در بدترین حالت به نصف اندازه تخصیص و در حالت متوسط به یک چهارم تخصیص محدود کنیم.
 
-It is also common to optimize block sizes based on common allocation sizes in a program. For example, we could additionally add block size 24 to improve memory usage for programs that often perform allocations of 24 bytes. This way, the amount of wasted memory can be often reduced without losing the performance benefits.
+همچنین بهینه‌سازی اندازه بلوک‌ها بر اساس اندازه‌های تخصیص رایج در یک برنامه، رایج است. به عنوان مثال، می‌توانیم اندازه بلوک 24 را برای بهبود استفاده از حافظه برای برنامه‌هایی که اغلب تخصیص‌های 24 بایتی را انجام می‌دهند، اضافه کنیم. به این ترتیب، مقدار حافظه تلف شده را اغلب می‌توان بدون از دست دادن مزایای کارایی کاهش داد.
 
-#### Deallocation
+#### بازستانی تخصیص
 
-Like allocation, deallocation is also very performant. It involves the following steps:
+مانند تخصیص دادن، بازستانی تخصیص نیز بسیار کارآمد است. این شامل مراحل زیر است:
 
-- Round up the freed allocation size to the next block size. This is required since the compiler only passes the requested allocation size to `dealloc`, not the size of the block that was returned by `alloc`. By using the same size-adjustment function in both `alloc` and `dealloc` we can make sure that we always free the correct amount of memory.
-- Retrieve the head pointer for the list, e.g. from an array.
-- Add the freed block to the front of the list by updating the head pointer.
+- اندازه تخصیص آزاد شده را به اندازه بلوک بعدی گرد کنید. این مورد ضروری است زیرا کامپایلر فقط اندازه تخصیص درخواستی را به 'dealloc' منتقل می‌کند، نه اندازه بلوکی که توسط 'alloc' برگردانده شده است. با استفاده از یک تابع تنظیم اندازه در «alloc» و «dealloc» می‌توانیم مطمئن شویم که همیشه مقدار صحیح حافظه را آزاد می‌کنیم.
+- نشانگر هدِ لیست را بازیابی کنید، به عنوان مثال، از یک آرایه.
+- بلوک آزاد شده را با به‌روزرسانی نشانگر هد به جلوی لیست اضافه کنید.
 
-Most notably, no traversal of the list is required for deallocation either. This means that the time required for a `dealloc` call stays the same regardless of the list length.
+مهمتر از همه، هیچ پیمایشی از لیست برای بازستانی تخصیص لازم نیست. این بدان معناست که زمان مورد نیاز برای فراخوانی «dealloc» بدون در نظر گرفتن طول لیست ثابت می‌ماند.
 
-#### Fallback Allocator
+#### تخصیص‌دهنده جایگزین (Fallback)
 
-Given that large allocations (>2KB) are often rare, especially in operating system kernels, it might make sense to fall back to a different allocator for these allocations. For example, we could fall back to a linked list allocator for allocations greater than 2048 bytes in order to reduce memory waste. Since only very few allocations of that size are expected, the linked list would stay small so that (de)allocations would be still reasonably fast.
+با توجه به این‌که تخصیص‌های بزرگ (بزرگ‌تر از 2KB) اغلب نادر هستند، به‌ویژه در هسته‌های سیستم‌عامل، ممکن است منطقی باشد که از تخصیص‌دهنده‌ای متفاوت برای این تخصیص‌ها استفاده کنیم. به عنوان مثال، می‌توانیم برای کاهش اتلاف حافظه، از یک تخصیص‌دهنده لیست پیوندی برای تخصیص‌های بیشتر از 2048 بایت استفاده کنیم. از آن‌جایی که تنها تعداد بسیار کمی تخصیص با آن اندازه مورد انتظار است، لیست پیوندی کوچک باقی می‌ماند تا بازستانی تخصیص همچنان به طور معقولی سریع باشد.
 
-#### Creating new Blocks
+#### ایجاد بلوک‌های جدید
 
-Above, we always assumed that there are always enough blocks of a specific size in the list to fulfill all allocation requests. However, at some point the linked list for a block size becomes empty. At this point, there are two ways how we can create new unused blocks of a specific size to fulfill an allocation request:
+در بالا، ما همیشه فرض می‌کردیم که همیشه بلوک‌های کافی با یک اندازه خاص در لیست وجود دارد تا تمام درخواست‌های تخصیص را برآورده کند. با این حال، در برخی موارد لیست پیوندی برای یک اندازه بلوک خاص خالی می‌شود. در این مرحله، دو راه وجود دارد که چگونه می‌توانیم بلوک‌های بلااستفاده جدید با اندازه‌ای خاص برای انجام یک درخواست تخصیص ایجاد کنیم:
 
-- Allocate a new block from the fallback allocator (if there is one).
-- Split a larger block from a different list. This best works if block sizes are powers of two. For example, a 32-byte block can be split into two 16-byte blocks.
+- یک بلوک جدید از تخصیص‌دهنده جایگزین (در صورت وجود) اختصاص دهید.
+- یک بلوک بزرگ‌تر را از یک لیست که مربوط به اندازه‌های بزرگ‌تر هست را تقسیم کنید. اگر اندازه بلوک توان دو باشد، این بهترین گزینه خواهد بود. به عنوان مثال، یک بلوک 32 بایتی را می‌توان به دو بلوک 16 بایتی تقسیم کرد.
 
-For our implementation, we will allocate new blocks from the fallback allocator since the implementation is much simpler.
+برای پیاده‌سازی خود، بلوک‌های جدیدی را از تخصیص‌دهنده جایگزین تخصیص می‌دهیم زیرا پیاده‌سازی بسیار ساده‌تر است.
 
-### Implementation
+### پیاده‌سازی
 
-Now that we know how a fixed-size block allocator works, we can start our implementation. We won't depend on the implementation of the linked list allocator created in the previous section, so you can follow this part even if you skipped the linked list allocator implementation.
+اکنون که می‌دانیم یک تخصیص‌دهنده با اندازه بلوک ثابت چگونه کار می‌کند، می‌توانیم پیاده‌سازی خود را شروع کنیم. ما به اجرای- تخصیص‌دهنده لیست پیوندی ایجاد شده در بخش قبل وابسته نیستیم، بنابراین می‌توانید این قسمت را دنبال کنید حتی اگر اجرای- تخصیص‌دهنده لیست پیوندی را نادیده گرفته باشید.
 
-#### List Node
+#### لیست گره
 
-We start our implementation by creating a `ListNode` type in a new `allocator::fixed_size_block` module:
+ما پیاده‌سازی خود را با ایجاد یک نوع «ListNode» در یک ماژول جدید «allocator::fixed_size_block» شروع می‌کنیم:
 
 ```rust
 // in src/allocator.rs
@@ -903,13 +903,13 @@ struct ListNode {
 }
 ```
 
-This type is similar to the `ListNode` type of our [linked list allocator implementation], with the difference that we don't have a second `size` field. The `size` field isn't needed because every block in a list has the same size with the fixed-size block allocator design.
+این نوع شبیه به نوع «ListNode» در [پیاده‌سازی تخصیص‌دهنده لیست پیوندی] ما است، با این تفاوت که فیلد دوم «size» نداریم. فیلد `size` مورد نیاز نیست زیرا هر بلوک در یک لیست با طراحی تخصیص‌دهنده با اندازه بلوک ثابت اندازه یکسانی دارد.
 
-[linked list allocator implementation]: #the-allocator-type
+[پیاده‌سازی تخصیص‌دهنده لیست پیوندی]: #the-allocator-type
 
-#### Block Sizes
+#### اندازه‌های بلوک
 
-Next, we define a constant `BLOCK_SIZES` slice with the block sizes used for our implementation:
+در مرحله بعد، یک برش «BLOCK_SIZES» ثابت با اندازه‌های بلوک مورد استفاده برای پیاده‌سازی تعریف می‌کنیم:
 
 ```rust
 // in src/allocator/fixed_size_block.rs
@@ -921,9 +921,9 @@ Next, we define a constant `BLOCK_SIZES` slice with the block sizes used for our
 const BLOCK_SIZES: &[usize] = &[8, 16, 32, 64, 128, 256, 512, 1024, 2048];
 ```
 
-As block sizes, we use powers of 2 starting from 8 up to 2048. We don't define any block sizes smaller than 8 because each block must be capable of storing a 64-bit pointer to the next block when freed. For allocations greater than 2048 bytes we will fall back to a linked list allocator.
+به عنوان اندازه بلوک، از توان‌های 2 استفاده می‌کنیم که از 8 شروع و تا 2048  ادامه دارد. ما هیچ اندازه بلوکی کوچک‌تر از 8 تعریف نمی‌کنیم زیرا هر بلوک باید قابلیت ذخیره یک اشاره‌گر 64 بیتی را در بلوک بعدی داشته باشد. برای تخصیص‌های بیشتر از 2048 بایت، ما از یک تخصیص‌دهنده لیست پیوندی استفاده می‌کنیم.
 
-To simplify the implementation, we define that the size of a block is also its required alignment in memory. So a 16 byte block is always aligned on a 16-byte boundary and a 512 byte block is aligned on a 512-byte boundary. Since alignments always need to be powers of 2, this rules out any other block sizes. If we need block sizes that are not powers of 2 in the future, we can still adjust our implementation for this (e.g. by defining a second `BLOCK_ALIGNMENTS` array).
+برای ساده‌سازی پیاده‌سازی، تعریف می‌کنیم که اندازه یک بلوک برابر با تراز مورد نیاز آن در حافظه است. بنابراین یک بلوک 16 بایتی همیشه روی یک مرز 16 بایتی و یک بلوک 512 بایتی روی یک مرز 512 بایتی تراز می‌شود. از آن‌جایی که ترازها همیشه باید توان 2 باشند، این امر هر اندازه بلوک دیگری را رد می‌کند. اگر در آینده به اندازه بلوک‌هایی نیاز داشته باشیم که توان 2 نباشد، همچنان می‌توانیم پیاده‌سازی خود را برای این کار تنظیم کنیم (مثلاً با تعریف یک آرایه «BLOCK_ALIGNMENTS» دوم).
 
 #### The Allocator Type
 
