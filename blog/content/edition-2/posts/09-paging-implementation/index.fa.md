@@ -1,7 +1,7 @@
 +++
 title = "پیاده‌سازی صفحه‌بندی"
 weight = 9
-path = "paging-implementation"
+path = "fa/paging-implementation"
 date = 2019-03-14
 
 [extra]
