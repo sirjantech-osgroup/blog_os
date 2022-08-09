@@ -21,6 +21,7 @@ rtl = true
 
 [گیت‌هاب]: https://github.com/phil-opp/blog_os
 [در زیر]: #comments
+<!-- fix for zola anchor checker (target is in template): <a id="comments"> -->
 [post branch]: https://github.com/phil-opp/blog_os/tree/post-12
 
 <!-- toc -->
@@ -232,7 +233,7 @@ fn file_len() -> impl Future<Output = usize> {
 
 [_Zero-cost futures in Rust_]: https://aturon.github.io/blog/2016/08/11/futures/
 
-##### معایب
+##### معایب {#cons}
 
 در حالی که ترکیب‌کننده‌های فیوچر، نوشتن کدهای بسیار کارآمد را ممکن می‌سازند، استفاده از آن‌ها در برخی شرایط به دلیل سیستمِ نوع و رابط مبتنی بر closure، ممکن است دشوار باشد. به عنوان مثال، کدی مانند این را در نظر بگیرید:
 
@@ -290,7 +291,7 @@ async fn example(min_len: usize) -> String {
 
 ([Try it on the playground](https://play.rust-lang.org/?version=stable&mode=debug&edition=2018&gist=d93c28509a1c67661f31ff820281d434))
 
-این تابع یک ترجمه مستقیم از تابع `example` است که از توابع ترکیب‌کننده‌ای که در [بالا](#معایب) دیدید استفاده می‌کند. با استفاده از عملگر `.await`، می‌توانیم مقدار یک فیوچر را بدون نیاز به closureها یا انوع `Either` بازیابی کنیم. در نتیجه، می‌توانیم کد خود را مانند کدهای همزمان معمولی بنویسیم، با این تفاوت که _همچنان کد ناهمزمان است_.
+این تابع یک ترجمه مستقیم از تابع `example` است که از توابع ترکیب‌کننده‌ای که در [بالا](#cons) دیدید استفاده می‌کند. با استفاده از عملگر `.await`، می‌توانیم مقدار یک فیوچر را بدون نیاز به closureها یا انوع `Either` بازیابی کنیم. در نتیجه، می‌توانیم کد خود را مانند کدهای همزمان معمولی بنویسیم، با این تفاوت که _همچنان کد ناهمزمان است_.
 
 #### تبدیل ماشین حالت
 
